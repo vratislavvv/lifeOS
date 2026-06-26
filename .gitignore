@@ -1,1 +1,25 @@
+# Claude Code local settings
 .claude/settings.local.json
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Database (local data — never commit)
+*.db
+*.db-shm
+*.db-wal
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store

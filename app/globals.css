@@ -1,0 +1,47 @@
+:root {
+  --bg:              #E7E5DD;
+  --surface:         #F1F0EA;
+  --surface-sunk:    #DEDCD3;
+
+  --ink:             #292723;
+  --ink-soft:        #6A675E;
+  --ink-faint:       #9A968B;
+
+  --hairline:        rgba(41, 39, 35, 0.12);
+  --hairline-strong: rgba(41, 39, 35, 0.20);
+
+  --attention: #B8863C;
+  --positive:  #7E8A6B;
+
+  --v-craft:  #B0853F;
+  --v-body:   #7E8A6B;
+  --v-money:  #6B7E8A;
+  --v-mind:   #7E6B8A;
+  --v-social: #8A6B7E;
+  --v-rest:   #6B8A8A;
+
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.coming-soon {
+  padding: 40px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
