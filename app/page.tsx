@@ -1,7 +1,13 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
 
-// Entry point — will route to /setup on first run, /today thereafter.
-// For now always redirects to /today (setup detection comes with the DB layer).
 export default function Home() {
-  redirect("/today");
+  try {
+    const u = db.select().from(user).get();
+    redirect(u?.setupDone ? '/today' : '/setup');
+  } catch {
+    // DB not yet initialised (before db:push) — send to setup
+    redirect('/setup');
+  }
 }

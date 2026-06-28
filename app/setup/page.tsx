@@ -1,3 +1,5 @@
+import SetupFlow from './SetupFlow';
+
 export default function SetupPage() {
-  return <p className="coming-soon">Setup</p>;
+  return <SetupFlow />;
 }
