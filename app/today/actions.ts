@@ -3,53 +3,144 @@
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { inputs, scores, vectors, goals } from '@/lib/db/schema';
+import { inputs, scores, vectors, goals, tasks, user as userTable } from '@/lib/db/schema';
 import { extractInput } from '@/lib/llm/extract';
+import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
 import { computeScore, quarterPaceNow } from '@/lib/scoring/compute';
 
-export async function submitInput(rawText: string) {
+export async function sendToLenna(
+  rawText: string,
+  history: ChatMessage[]
+): Promise<{ reply?: string; error?: string }> {
   const text = rawText.trim();
-  if (!text) return;
+  if (!text) return {};
 
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const quarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
 
+  const u = db.select().from(userTable).get();
   const vecs = db.select().from(vectors).all();
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
 
-  const extracted = await extractInput(text, vecs, quarterGoals);
+  let extracted: Awaited<ReturnType<typeof extractInput>>;
+  try {
+    extracted = await extractInput(text, vecs, quarterGoals);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { error: `Extraction failed: ${msg}` };
+  }
 
-  // Validate LLM-returned IDs against actual DB records
-  const validVectorIds = new Set(vecs.map(v => v.id));
-  const validGoalIds = new Set(quarterGoals.map(g => g.id));
-  const vectorId = validVectorIds.has(extracted.vectorId) ? extracted.vectorId : (vecs[0]?.id ?? 'craft');
-  const goalId = extracted.goalId && validGoalIds.has(extracted.goalId) ? extracted.goalId : null;
+  let operatingLevel: number | null = null;
+  let vectorBreakdown: Record<string, number> = {};
+  let justLogged: { vectorId: string; summary: string; progressDelta: number } | null = null;
 
-  db.insert(inputs).values({
-    date: today,
-    type: 'manual',
-    vectorId,
-    goalId,
-    rawText: text,
-    progressDelta: extracted.progressDelta,
-    confidence: extracted.confidence,
-    metadata: { summary: extracted.summary },
-  }).run();
+  if (extracted.isProgressLog) {
+    const validVectorIds = new Set(vecs.map(v => v.id));
+    const validGoalIds = new Set(quarterGoals.map(g => g.id));
+    const vectorId = validVectorIds.has(extracted.vectorId) ? extracted.vectorId : (vecs[0]?.id ?? 'craft');
+    const goalId = extracted.goalId && validGoalIds.has(extracted.goalId) ? extracted.goalId : null;
 
-  // Recompute score from all inputs to date
-  const allInputs = db.select().from(inputs).all();
-  const pace = quarterPaceNow();
-  const { operatingLevel, vectorBreakdown } = computeScore(vecs, allInputs, pace);
+    db.insert(inputs).values({
+      date: today,
+      type: 'manual',
+      vectorId,
+      goalId,
+      rawText: text,
+      progressDelta: extracted.progressDelta,
+      confidence: extracted.confidence,
+      metadata: { summary: extracted.summary },
+    }).run();
 
-  // Replace today's score row
-  db.delete(scores).where(eq(scores.date, today)).run();
-  db.insert(scores).values({
-    date: today,
-    operatingLevel,
-    vectorBreakdown,
-    explanation: `${allInputs.length} input(s) · latest: ${extracted.summary}`,
-  }).run();
+    const allInputs = db.select().from(inputs).all();
+    const pace = quarterPaceNow();
+    const computed = computeScore(vecs, allInputs, pace);
+    operatingLevel = computed.operatingLevel;
+    vectorBreakdown = computed.vectorBreakdown;
+
+    db.delete(scores).where(eq(scores.date, today)).run();
+    db.insert(scores).values({
+      date: today,
+      operatingLevel,
+      vectorBreakdown,
+      explanation: `${allInputs.length} input(s) · latest: ${extracted.summary}`,
+    }).run();
+
+    justLogged = { vectorId, summary: extracted.summary, progressDelta: extracted.progressDelta };
+  } else {
+    const latest = db.select().from(scores).where(eq(scores.date, today)).get();
+    if (latest) {
+      operatingLevel = latest.operatingLevel;
+      vectorBreakdown = latest.vectorBreakdown as Record<string, number>;
+    }
+  }
+
+  let reply: string;
+  try {
+    reply = await chatWithLenna(
+      text,
+      {
+        userName: u?.name ?? 'You',
+        quarter,
+        operatingLevel,
+        vectorBreakdown,
+        vectors: vecs.map(v => ({ id: v.id, label: v.label })),
+        goals: quarterGoals.map(g => ({ vectorId: g.vectorId ?? '', description: g.description ?? '' })),
+        justLogged,
+      },
+      history,
+      async (toolName, input) => {
+        if (toolName === 'add_task') {
+          const { title } = input as { title: string };
+          db.insert(tasks).values({ title, date: today }).run();
+          return `Task "${title}" added to today's list.`;
+        }
+
+        if (toolName === 'log_progress') {
+          const { vectorId, description, progressDelta } = input as {
+            vectorId: string;
+            description: string;
+            progressDelta: number;
+          };
+          const validVec = vecs.find(v => v.id === vectorId);
+          if (!validVec) return 'Invalid vector ID.';
+
+          db.insert(inputs).values({
+            date: today,
+            type: 'manual',
+            vectorId,
+            goalId: null,
+            rawText: description,
+            progressDelta: Math.min(Math.max(progressDelta, 0), 1),
+            confidence: 0.9,
+            metadata: { summary: description },
+          }).run();
+
+          const allInputs = db.select().from(inputs).all();
+          const pace = quarterPaceNow();
+          const computed = computeScore(vecs, allInputs, pace);
+          operatingLevel = computed.operatingLevel;
+          vectorBreakdown = computed.vectorBreakdown;
+
+          db.delete(scores).where(eq(scores.date, today)).run();
+          db.insert(scores).values({
+            date: today,
+            operatingLevel: computed.operatingLevel,
+            vectorBreakdown: computed.vectorBreakdown,
+            explanation: `${allInputs.length} input(s) · latest: ${description}`,
+          }).run();
+
+          return `Logged "${description}" under ${validVec.label} (+${Math.round(progressDelta * 100)}pp).`;
+        }
+
+        return 'Unknown tool.';
+      }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { error: `Chat failed: ${msg}` };
+  }
 
   revalidatePath('/today');
+  return { reply };
 }

@@ -1,23 +1,27 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef, useEffect } from 'react';
 import styles from './today.module.css';
 import Clock from './Clock';
 import FocusTimer from './FocusTimer';
 import CalSection from './CalSection';
-import { submitInput } from './actions';
-import type { vectors, goals, scores, user } from '@/lib/db/schema';
+import { sendToLenna } from './actions';
+import { toggleTask, deleteTask } from './taskActions';
+import type { ChatMessage } from '@/lib/llm/chat';
+import type { vectors, goals, scores, tasks, user } from '@/lib/db/schema';
 
 type User = typeof user.$inferSelect;
 type Vector = typeof vectors.$inferSelect;
 type Goal = typeof goals.$inferSelect;
 type Score = typeof scores.$inferSelect;
+type Task = typeof tasks.$inferSelect;
 
 type Props = {
   user: User;
   vectors: Vector[];
   goals: Goal[];
   score: Score | null;
+  todayTasks: Task[];
   currentQuarter: string;
   quarterPace: number;
 };
@@ -29,24 +33,78 @@ function formatDate(d: Date) {
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
-export default function TodayShell({ user, vectors, goals, score, currentQuarter, quarterPace }: Props) {
+export default function TodayShell({ user, vectors, goals, score, todayTasks, currentQuarter, quarterPace }: Props) {
   const today = new Date();
   const [inputText, setInputText] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputError, setInputError] = useState<string | null>(null);
+  const [lennaOpen, setLennaOpen] = useState(true);
+  const [lennaWidth, setLennaWidth] = useState(260);
   const [pending, startTransition] = useTransition();
+  const [taskPending, startTaskTransition] = useTransition();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 180), 520);
+      setLennaWidth(newWidth);
+    }
+    function onMouseUp() {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   const [qYear, qNum] = currentQuarter.split('-Q');
   const quarterLabel = `Q${qNum} ${qYear}`;
+  const firstName = user.name.trim().split(' ')[0] || 'you';
 
   const breakdown = score
     ? (score.vectorBreakdown as Record<string, number>)
     : {};
 
+  // Scroll chat to bottom on new messages
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, pending]);
+
+  // Reload at midnight so done tasks clear and the date updates
+  useEffect(() => {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const ms = midnight.getTime() - now.getTime();
+    const t = setTimeout(() => window.location.reload(), ms);
+    return () => clearTimeout(t);
+  }, []);
+
   function handleSubmit() {
     const text = inputText.trim();
     if (!text || pending) return;
+    setInputError(null);
+
+    const previousMessages = [...messages];
+    const userMessage: ChatMessage = { role: 'user', text };
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+
     startTransition(async () => {
-      await submitInput(text);
-      setInputText('');
+      const result = await sendToLenna(text, previousMessages);
+      if (result.error) {
+        setInputError(result.error);
+        setMessages(prev => prev.slice(0, -1)); // remove optimistic user message
+      } else if (result.reply) {
+        setMessages(prev => [...prev, { role: 'lenna', text: result.reply! }]);
+      }
     });
   }
 
@@ -116,9 +174,31 @@ export default function TodayShell({ user, vectors, goals, score, currentQuarter
         <div className={styles.row}>
           <div className={`${styles.island} ${styles.todayIsland}`}>
             <div className={styles.islandLabel}>Today</div>
-            <div className={styles.emptyState}>
-              No tasks yet — Lenna will suggest after your first input.
-            </div>
+            {todayTasks.length === 0 ? (
+              <div className={styles.emptyState}>No tasks yet — ask Lenna to add one.</div>
+            ) : (
+              <div className={styles.taskList}>
+                {todayTasks.map(task => (
+                  <div key={task.id} className={`${styles.taskRow} ${taskPending ? styles.taskPending : ''}`}>
+                    <button
+                      className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
+                      onClick={() => startTaskTransition(() => toggleTask(task.id))}
+                      title={task.done ? 'Mark undone' : 'Mark done'}
+                    />
+                    <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
+                      {task.title}
+                    </span>
+                    <button
+                      className={styles.taskDelete}
+                      onClick={() => startTaskTransition(() => deleteTask(task.id))}
+                      title="Delete"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className={`${styles.island} ${styles.islandSunk} ${styles.clockIsland}`}>
             <Clock timeFormat={user.timeFormat} timezone={user.timezone} />
@@ -128,7 +208,10 @@ export default function TodayShell({ user, vectors, goals, score, currentQuarter
         {/* Row 2: Quarter island + Focus */}
         <div className={styles.row}>
           <div className={`${styles.island} ${styles.quarterIsland}`}>
-            <div className={styles.islandLabel}>Quarter · {quarterLabel}</div>
+            <div className={styles.islandLabel}>
+              Quarter · {quarterLabel}
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--attention)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em', marginLeft: 8 }}>PROTOTYPE</span>
+            </div>
             {vectors.map(v => {
               const paceGap = breakdown[v.id] ?? null;
               const progress = paceGap !== null
@@ -173,7 +256,15 @@ export default function TodayShell({ user, vectors, goals, score, currentQuarter
       </main>
 
       {/* ── Resize handle ── */}
-      <div className={styles.resizeHandle}>
+      <div
+        className={styles.resizeHandle}
+        onMouseDown={e => {
+          e.preventDefault();
+          dragging.current = true;
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+        }}
+      >
         <div className={styles.handleDots}>
           <div className={styles.handleDot} />
           <div className={styles.handleDot} />
@@ -181,55 +272,82 @@ export default function TodayShell({ user, vectors, goals, score, currentQuarter
         </div>
       </div>
 
-      {/* ── Assistant / Lenna ── */}
-      <aside className={styles.assistant}>
-        <div className={styles.assistantHeader}>
-          <span className={styles.assistantTitle}>Lenna</span>
-          <span className={styles.assistantCollapse}>←</span>
-        </div>
-        <div className={styles.assistantBody}>
-          {!score ? (
-            <div className={styles.proposalCard}>
-              <div className={styles.proposalType}>welcome</div>
-              <div className={styles.proposalText}>
-                Setup complete. Tell me what moved today and I'll compute your first operating level score.
+      {/* ── Lenna ── */}
+      {lennaOpen ? (
+        <aside className={styles.assistant} style={{ width: lennaWidth }}>
+          <div className={styles.assistantHeader}>
+            <span className={styles.assistantTitle}>Lenna</span>
+            <button
+              className={styles.assistantCollapse}
+              onClick={() => setLennaOpen(false)}
+              title="Close Lenna"
+            >
+              ←
+            </button>
+          </div>
+
+          <div className={styles.assistantBody}>
+            {messages.length === 0 ? (
+              <div className={styles.chatLenna}>
+                <div className={styles.chatLennaLabel}>lenna</div>
+                <div className={styles.chatLennaText}>
+                  {score
+                    ? `Operating level is ${Math.round(score.operatingLevel)}. What else moved today, ${firstName}?`
+                    : `Setup complete, ${firstName}. Tell me what moved today and I'll compute your first operating level.`
+                  }
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className={styles.proposalCard}>
-              <div className={styles.proposalType}>score</div>
-              <div className={styles.proposalText}>
-                Operating level <strong>{Math.round(score.operatingLevel)}</strong>.{' '}
-                {score.explanation}
+            ) : (
+              messages.map((m, i) =>
+                m.role === 'user' ? (
+                  <div key={i} className={styles.chatUser}>{m.text}</div>
+                ) : (
+                  <div key={i} className={styles.chatLenna}>
+                    <div className={styles.chatLennaLabel}>lenna</div>
+                    <div className={styles.chatLennaText}>{m.text}</div>
+                  </div>
+                )
+              )
+            )}
+            {pending && (
+              <div className={styles.chatLenna}>
+                <div className={styles.chatLennaLabel}>lenna</div>
+                <div className={`${styles.chatLennaText} ${styles.chatPending}`}>…</div>
               </div>
-            </div>
-          )}
-          {pending && (
-            <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', padding: '4px 0' }}>
-              Processing…
-            </div>
-          )}
+            )}
+            {inputError && (
+              <div style={{ fontSize: 11, color: 'var(--attention)', fontFamily: 'var(--font-mono)', padding: '4px 0' }}>
+                {inputError}
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className={styles.assistantInputWrap}>
+            <textarea
+              className={styles.assistantInput}
+              placeholder="What moved today?"
+              rows={2}
+              value={inputText}
+              disabled={pending}
+              onChange={e => setInputText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+            />
+            {inputText.trim() && !pending && (
+              <div className={styles.assistantInputHint}>↵ send · shift+↵ newline</div>
+            )}
+          </div>
+        </aside>
+      ) : (
+        <div className={styles.lennaStrip} onClick={() => setLennaOpen(true)} title="Open Lenna">
+          <span className={styles.lennaStripLabel}>Lenna →</span>
         </div>
-        <div className={styles.assistantInputWrap}>
-          <textarea
-            className={styles.assistantInput}
-            placeholder="What moved today?"
-            rows={2}
-            value={inputText}
-            disabled={pending}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-          />
-          {inputText.trim() && !pending && (
-            <div className={styles.assistantInputHint}>⌘↵ to send</div>
-          )}
-        </div>
-      </aside>
+      )}
 
     </div>
   );

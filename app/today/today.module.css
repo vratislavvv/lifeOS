@@ -240,18 +240,84 @@
 
 /* Focus island */
 .focusIsland { flex: 1; }
-.focusTime {
-  font-size: 26px;
+.timerWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.timerRingWrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+.timerSvg { display: block; }
+.timerCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.timerTime {
+  font-size: 17px;
   font-weight: 500;
   font-family: var(--font-mono);
-  color: var(--ink-soft);
+  color: var(--ink-faint);
   line-height: 1;
-  margin-bottom: 12px;
-  cursor: pointer;
-  user-select: none;
+  transition: color 0.3s;
 }
-.focusTimeRunning { color: var(--ink); }
-.focusPresets { display: flex; gap: 5px; margin-top: auto; }
+.timerTimeActive { color: var(--ink); }
+.timerPhaseBadge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--v-craft);
+  margin-left: 6px;
+}
+.timerPhaseBadgeBreak { color: var(--positive); }
+.timerControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timerBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 2px;
+  transition: opacity 0.15s;
+}
+.timerBtn:hover { opacity: 0.8; }
+.timerBtnGhost {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1px solid var(--hairline-strong);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.timerBtnGhost:hover { background: var(--surface-sunk); }
+.timerPresets { display: flex; gap: 5px; }
 .presetBtn {
   padding: 4px 9px;
   border-radius: 5px;
@@ -266,14 +332,106 @@
 .presetBtnActive { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .presetBtn:not(.presetBtnActive):hover { background: var(--surface-sunk); }
 
+.presetBtnWrap {
+  position: relative;
+  display: inline-flex;
+}
+.presetRemoveBtn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--attention);
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: var(--font-sans);
+}
+.presetBtnWrap:hover .presetRemoveBtn { display: flex; }
+
+.presetAddBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.1s, border-color 0.1s;
+  font-family: var(--font-sans);
+}
+.presetAddBtn:hover { color: var(--ink-soft); border-color: var(--ink-soft); }
+
+.addPresetRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+.addPresetInput {
+  width: 44px;
+  padding: 3px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-align: center;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.addPresetInput::-webkit-inner-spin-button,
+.addPresetInput::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.addPresetInput:focus { border-color: var(--ink-soft); }
+.addPresetSep { font-size: 11px; color: var(--ink-faint); }
+.addPresetConfirm {
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--ink-soft);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+.addPresetConfirm:hover { opacity: 0.85; }
+.addPresetCancel {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+}
+.addPresetCancel:hover { color: var(--ink-soft); }
+
 /* === Calendar === */
 .calSection {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: 10px;
   padding: 12px 15px 13px;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -285,6 +443,35 @@
   justify-content: space-between;
   margin-bottom: 11px;
   flex-shrink: 0;
+}
+
+/* Week strip collapses when month opens */
+.calWeekOuter {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.calWeekOuterHidden {
+  grid-template-rows: 0fr;
+}
+.calWeekInner { overflow: hidden; }
+
+/* Month grid expands when month opens */
+.calMonthOuter {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.calMonthOuterOpen {
+  grid-template-rows: 1fr;
+}
+.calMonthInner {
+  overflow: hidden;
+  padding-top: 0;
+  transition: padding-top 0.28s ease;
+}
+.calMonthOuterOpen .calMonthInner {
+  padding-top: 4px;
 }
 .calTitleGroup { display: flex; align-items: baseline; gap: 9px; }
 .calTitle { font-size: 11px; font-weight: 500; color: var(--ink-faint); }
@@ -453,8 +640,9 @@
 
 /* === Assistant === */
 .assistant {
-  width: 260px;
   flex-shrink: 0;
+  min-width: 180px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -481,8 +669,9 @@
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 .proposalCard {
   background: var(--surface-sunk);
@@ -544,3 +733,132 @@
   margin-top: 6px;
   text-align: right;
 }
+
+/* === Tasks === */
+.taskList { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+.taskRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  border-radius: 5px;
+  transition: opacity 0.15s;
+}
+.taskRow:hover .taskDelete { opacity: 1; }
+.taskPending { opacity: 0.5; pointer-events: none; }
+.taskCheck {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--hairline-strong);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background 0.12s, border-color 0.12s;
+  position: relative;
+}
+.taskCheck:hover { border-color: var(--ink-soft); }
+.taskCheckDone {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.taskCheckDone::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 5px;
+  height: 8px;
+  border: 1.5px solid var(--bg);
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+.taskTitle {
+  flex: 1;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.taskDone {
+  text-decoration: line-through;
+  color: var(--ink-faint);
+}
+.taskDelete {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.1s, opacity 0.1s;
+  flex-shrink: 0;
+}
+.taskDelete:hover { color: var(--attention); }
+
+/* === Chat messages === */
+.chatUser {
+  background: var(--surface-sunk);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-align: right;
+  align-self: flex-end;
+  max-width: 90%;
+  margin-left: auto;
+}
+.chatLenna {
+  padding: 2px 0;
+}
+.chatLennaLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.chatLennaText {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.chatPending {
+  color: var(--ink-faint);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* === Lenna collapsed strip === */
+.lennaStrip {
+  width: 28px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--surface-sunk);
+  transition: background 0.1s;
+}
+.lennaStrip:hover { background: var(--surface); }
+.lennaStripLabel {
+  font-size: 10px;
+  color: var(--ink-faint);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  user-select: none;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.lennaStrip:hover .lennaStripLabel { color: var(--ink-soft); }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, lt } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { user, vectors, goals, scores } from '@/lib/db/schema';
+import { user, vectors, goals, scores, tasks } from '@/lib/db/schema';
 import { quarterPaceNow } from '@/lib/scoring/compute';
 import TodayShell from './TodayShell';
 
@@ -23,12 +23,21 @@ export default function TodayPage() {
     .orderBy(desc(scores.createdAt))
     .get() ?? null;
 
+  // Remove done tasks from previous days
+  db.delete(tasks).where(and(lt(tasks.date, today), eq(tasks.done, true))).run();
+
+  const todayTasks = db.select().from(tasks)
+    .where(eq(tasks.date, today))
+    .orderBy(asc(tasks.createdAt))
+    .all();
+
   return (
     <TodayShell
       user={u}
       vectors={vecs}
       goals={quarterGoals}
       score={latestScore}
+      todayTasks={todayTasks}
       currentQuarter={quarter}
       quarterPace={quarterPaceNow()}
     />

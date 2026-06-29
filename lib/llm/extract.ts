@@ -1,4 +1,4 @@
-import { ai } from './client';
+import { getAI } from './client';
 
 type ExtractedInput = {
   vectorId: string;
@@ -6,6 +6,7 @@ type ExtractedInput = {
   progressDelta: number;
   confidence: number;
   summary: string;
+  isProgressLog: boolean;
 };
 
 export async function extractInput(
@@ -32,6 +33,7 @@ Entry: "${rawText}"
 
 Respond with valid JSON only, no other text:
 {
+  "isProgressLog": <true if the user is reporting something they did, false if it's a question or comment>,
   "vectorId": "<one of: ${validIds}>",
   "goalId": "<matching goal id or null>",
   "progressDelta": <0.0-1.0, fraction of the quarter goal this input represents>,
@@ -46,17 +48,20 @@ progressDelta calibration:
 - One night of a daily consistency habit ≈ 0.01–0.02
 - Completing a major milestone ≈ 0.3–0.5`;
 
-  const resp = await ai.messages.create({
+  const resp = await getAI().messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 256,
     messages: [{ role: 'user', content: prompt }],
   });
 
   const text = resp.content[0].type === 'text' ? resp.content[0].text.trim() : '{}';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const jsonStr = jsonMatch ? jsonMatch[0] : '{}';
 
   try {
-    const parsed = JSON.parse(text) as Partial<ExtractedInput>;
+    const parsed = JSON.parse(jsonStr) as Partial<ExtractedInput>;
     return {
+      isProgressLog: parsed.isProgressLog ?? true,
       vectorId: parsed.vectorId ?? vectors[0]?.id ?? 'craft',
       goalId: parsed.goalId ?? null,
       progressDelta: Math.min(Math.max(parsed.progressDelta ?? 0.05, 0), 1),
@@ -65,6 +70,7 @@ progressDelta calibration:
     };
   } catch {
     return {
+      isProgressLog: true,
       vectorId: vectors[0]?.id ?? 'craft',
       goalId: null,
       progressDelta: 0.05,

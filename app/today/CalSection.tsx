@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import styles from './today.module.css';
 
 const DAYS_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -19,17 +19,15 @@ function weekSubtitle(today: Date): string {
   const s = getWeekStart(today);
   const e = new Date(s); e.setDate(s.getDate() + 6);
   if (s.getMonth() === e.getMonth())
-    return `${MONTHS[s.getMonth()]} · week of ${s.getDate()}–${e.getDate()}`;
+    return `${MONTHS[s.getMonth()]} · ${s.getDate()}–${e.getDate()}`;
   return `${MON_SHORT[s.getMonth()]} ${s.getDate()} – ${MON_SHORT[e.getMonth()]} ${e.getDate()}`;
 }
 
 export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) {
   const today = new Date();
-  const [view, setView] = useState<'week' | 'month'>('week');
+  const [monthOpen, setMonthOpen] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
-  const calRef = useRef<HTMLDivElement>(null);
 
-  // Build the 7 days of the current week
   const weekStartDate = getWeekStart(today);
   if (weekStart === 'sun') weekStartDate.setDate(weekStartDate.getDate() - 1);
 
@@ -39,7 +37,6 @@ export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) 
     return d;
   });
 
-  // Month grid
   const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   const year = base.getFullYear();
   const month = base.getMonth();
@@ -48,7 +45,10 @@ export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const prevDays = new Date(year, month, 0).getDate();
 
-  const monthCells = Array.from({ length: 42 }, (_, i) => {
+  const daysBeforeFirst = -gridStartOffset;
+  const totalCells = Math.ceil((daysBeforeFirst + daysInMonth) / 7) * 7;
+
+  const monthCells = Array.from({ length: totalCells }, (_, i) => {
     const dayNum = i + gridStartOffset + 1;
     let d: Date;
     let isOther = false;
@@ -61,16 +61,16 @@ export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) 
   const monthTitle = `${MONTHS[month]} ${year}`;
 
   return (
-    <div className={styles.calSection} ref={calRef}>
+    <div className={styles.calSection}>
       <div className={styles.calHeader}>
         <div className={styles.calTitleGroup}>
           <span className={styles.calTitle}>Calendar</span>
           <span className={styles.calSubtitle}>
-            {view === 'week' ? weekSubtitle(today) : monthTitle}
+            {monthOpen ? monthTitle : weekSubtitle(today)}
           </span>
         </div>
         <div className={styles.calControls}>
-          {view === 'month' && (
+          {monthOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button type="button" className={styles.calNavBtn} onClick={() => setMonthOffset(o => o - 1)}>‹</button>
               <button type="button" className={styles.calNavBtn} onClick={() => setMonthOffset(o => o + 1)}>›</button>
@@ -79,41 +79,45 @@ export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) 
           <button
             type="button"
             className={styles.toggleBtn}
-            onClick={() => setView(v => v === 'week' ? 'month' : 'week')}
+            onClick={() => setMonthOpen(o => !o)}
           >
-            <span>{view === 'week' ? 'Expand to month' : 'Collapse to week'}</span>
-            <span className={styles.toggleArrow}>{view === 'week' ? '⌄' : '⌃'}</span>
+            {monthOpen ? 'Week' : 'Month'}
+            <span className={styles.toggleArrow}>{monthOpen ? '⌃' : '⌄'}</span>
           </button>
         </div>
       </div>
 
-      {view === 'week' && (
-        <div className={styles.weekStrip}>
-          {weekDays.map((d, i) => {
-            const isToday = d.toDateString() === today.toDateString();
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-            return (
-              <div
-                key={i}
-                className={[
-                  styles.dayCell,
-                  isToday ? styles.dayCellToday : '',
-                  isWeekend ? styles.dayCellWeekend : '',
-                ].join(' ')}
-              >
-                <span className={styles.dayDname}>{DAYS_SHORT[d.getDay()]}</span>
-                <span className={styles.dayNum}>{d.getDate()}</span>
-                <div className={styles.dayDots}>
-                  <div className={styles.dayEmpty} />
+      {/* Week strip — collapses when month opens */}
+      <div className={`${styles.calWeekOuter} ${monthOpen ? styles.calWeekOuterHidden : ''}`}>
+        <div className={styles.calWeekInner}>
+          <div className={styles.weekStrip}>
+            {weekDays.map((d, i) => {
+              const isToday = d.toDateString() === today.toDateString();
+              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+              return (
+                <div
+                  key={i}
+                  className={[
+                    styles.dayCell,
+                    isToday ? styles.dayCellToday : '',
+                    isWeekend ? styles.dayCellWeekend : '',
+                  ].join(' ')}
+                >
+                  <span className={styles.dayDname}>{DAYS_SHORT[d.getDay()]}</span>
+                  <span className={styles.dayNum}>{d.getDate()}</span>
+                  <div className={styles.dayDots}>
+                    <div className={styles.dayEmpty} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      )}
+      </div>
 
-      {view === 'month' && (
-        <div className={styles.monthGridWrap}>
+      {/* Month grid — expands when month opens */}
+      <div className={`${styles.calMonthOuter} ${monthOpen ? styles.calMonthOuterOpen : ''}`}>
+        <div className={styles.calMonthInner}>
           <div className={styles.weekdayHeader}>
             {['MON','TUE','WED','THU','FRI','SAT','SUN'].map(d => (
               <div key={d} className={styles.wdLabel}>{d}</div>
@@ -137,7 +141,7 @@ export default function CalSection({ weekStart }: { weekStart: 'mon' | 'sun' }) 
             })}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

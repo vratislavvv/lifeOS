@@ -62,6 +62,14 @@ export const inputs = sqliteTable("inputs", {
   createdAt:     integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+export const tasks = sqliteTable("tasks", {
+  id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  date:      text("date").notNull(),
+  title:     text("title").notNull(),
+  done:      integer("done", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // One snapshot per day. vectorBreakdown is { [vectorId]: paceGap }.
 export const scores = sqliteTable("scores", {
   id:              text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
