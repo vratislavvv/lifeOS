@@ -39,6 +39,8 @@ export const goals = sqliteTable("goals", {
   quarter:        text("quarter").notNull(),
   description:    text("description").notNull(),
   type:           text("type", { enum: ["milestone", "metric", "consistency"] }).notNull(),
+  // lifecycle — only status=active goals are scored; draft/proposed during planning sessions
+  status:         text("status", { enum: ["draft", "proposed", "active", "completed", "abandoned"] }).notNull().default("active"),
   // pace
   paceShape:      text("pace_shape", { enum: ["linear", "easeIn", "easeOut", "sCurve"] }).notNull().default("linear"),
   paceParam:      real("pace_param"),                      // k for easeIn/easeOut/sCurve; null = use default
@@ -52,7 +54,6 @@ export const goals = sqliteTable("goals", {
   startValue:     real("start_value"),
   // consistency goals
   cadencePerWeek: real("cadence_per_week"),                // drives scheduledPeriods in Stage 1
-  active:         integer("active", { mode: "boolean" }).notNull().default(true),
   createdAt:      integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
@@ -100,6 +101,22 @@ export const tasks = sqliteTable("tasks", {
   urgent:    integer("urgent", { mode: "boolean" }).notNull().default(false),
   dueDate:   text("due_date"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+// Planning sessions — setup, quarterly review, or on-demand replan.
+// Goals authored in a session are draft/proposed until Commit phase flips them to active.
+// Quarter rollover is session-driven: goals close and τ resets when a session commits,
+// not at the calendar date.
+export const sessions = sqliteTable("sessions", {
+  id:               text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type:             text("type", { enum: ["setup", "quarter_review", "replan_ondemand"] }).notNull(),
+  quarter:          text("quarter").notNull(),
+  status:           text("status", { enum: ["open", "complete", "abandoned"] }).notNull().default("open"),
+  phase:            text("phase").notNull().default("orient"), // phase name varies by session type
+  report:           text("report", { mode: "json" }),          // deterministic quarter-report artifact
+  committedGoalIds: text("committed_goal_ids", { mode: "json" }), // goals committed in this session
+  createdAt:        integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  completedAt:      integer("completed_at", { mode: "timestamp" }),
 });
 
 // One row per recalculation. calibrating state = absence of a row for that date.

@@ -55,10 +55,10 @@ export async function completeSetup(data: SetupData) {
       quarter,
       description,
       type: 'milestone',
+      status: 'active',
       paceShape: 'linear',
       startDate,
       endDate,
-      active: true,
     }).run();
   });
 

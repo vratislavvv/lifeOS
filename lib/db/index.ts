@@ -54,6 +54,7 @@ function migrate(sqlite: InstanceType<typeof Database>) {
       quarter TEXT NOT NULL,
       description TEXT NOT NULL,
       type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
       pace_shape TEXT NOT NULL DEFAULT 'linear',
       pace_param REAL,
       weight REAL NOT NULL DEFAULT 1,
@@ -62,8 +63,19 @@ function migrate(sqlite: InstanceType<typeof Database>) {
       target_value REAL,
       start_value REAL,
       cadence_per_week REAL,
-      active INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      quarter TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      phase TEXT NOT NULL DEFAULT 'orient',
+      report TEXT,
+      committed_goal_ids TEXT,
+      created_at INTEGER,
+      completed_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS inputs (
@@ -142,11 +154,27 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   if (goalCols.has('pace_type') && !goalCols.has('pace_shape')) {
     sqlite.exec(`ALTER TABLE goals RENAME COLUMN pace_type TO pace_shape;`);
   }
+  if (!goalCols.has('status'))           sqlite.exec(`ALTER TABLE goals ADD COLUMN status TEXT NOT NULL DEFAULT 'active';`);
   if (!goalCols.has('pace_param'))       sqlite.exec(`ALTER TABLE goals ADD COLUMN pace_param REAL;`);
   if (!goalCols.has('weight'))           sqlite.exec(`ALTER TABLE goals ADD COLUMN weight REAL NOT NULL DEFAULT 1;`);
   if (!goalCols.has('start_date'))       sqlite.exec(`ALTER TABLE goals ADD COLUMN start_date TEXT;`);
   if (!goalCols.has('end_date'))         sqlite.exec(`ALTER TABLE goals ADD COLUMN end_date TEXT;`);
   if (!goalCols.has('cadence_per_week')) sqlite.exec(`ALTER TABLE goals ADD COLUMN cadence_per_week REAL;`);
+
+  // sessions
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      quarter TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      phase TEXT NOT NULL DEFAULT 'orient',
+      report TEXT,
+      committed_goal_ids TEXT,
+      created_at INTEGER,
+      completed_at INTEGER
+    );
+  `);
 
   // inputs
   const inputCols = cols(sqlite, 'inputs');

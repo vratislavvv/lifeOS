@@ -6,9 +6,9 @@
 
 **LLM work happens at ingest. Recalculation is pure, deterministic, and unit-testable.**
 
-- At **ingest time**, an LLM call parses free-text inputs into *structured* rows (tags + numbers). This is the only nondeterministic step, and it only runs on `type: "manual"` inputs.
-- **`recalculate(date)`** is a pure function of current DB state → a `scores` row. It contains **no LLM calls** and no randomness. Given the same inputs/goals, it always returns the same score.
-- A second LLM call only *phrases* an explanation that code has already computed numerically.
+- The LLM lives only at the **edges**: parsing manual progress inputs into structured rows (§3.1), authoring goal drafts during a planning session (`lifeOS-planning-sessions.md` §5.1), and phrasing explanations/reports into words. All three write or narrate *structured* data — none runs inside the math.
+- **`recalculate(date)`** is a pure function of current DB state → a `scores` row. **No LLM calls, no randomness.** Same inputs/goals ⇒ same score, every time.
+- Narration (the score explanation, the quarter report) runs only *after* the numbers are computed, never inside them.
 
 Quarantining the LLM to ingest is what makes the number reproducible and trustworthy. Do not call the model from inside the math.
 
@@ -23,6 +23,8 @@ Operates on the existing schema plus these required deltas:
 - `goals`: add `paceShape: enum(linear|easeIn|easeOut|sCurve)` and `paceParam: real?` (the `k`); `weight: real default 1`; `startDate`, `endDate` (or derive from `quarter`); for `consistency` goals, `cadencePerWeek: real`; for `metric` goals, a way to read `currentValue` (latest authoritative input value, or a denormalised column).
 - `inputs`: add `value: real?` (observed metric reading, distinct from progress), `durationMin: real?` (for alignment), and widen `progressDelta` to **−1..1**.
 - `scores`: add `operatingLevelRaw: real`, `alignment: real`, `contributors: json` (ranked decomposition).
+
+**Goal lifecycle:** the draft model's `goals.active: boolean` is superseded by `goals.status: enum(draft|proposed|active|completed|abandoned)`, owned by `lifeOS-planning-sessions.md`. **Only goals with `status = active` are scored** — `draft`, `proposed`, `completed`, and `abandoned` goals are excluded from every stage. An `abandoned` goal drops out from its abandonment date forward and is never retro-penalised.
 
 Everything else in the draft model stands.
 
@@ -60,7 +62,7 @@ Default `paceShape = linear`. Only deviate deliberately.
 ### Stage 3 — Vector gap `Γ_v`
 
 ```
-Γ_v = ( Σ_g weight_g · γ_g ) / ( Σ_g weight_g )      // over active goals in the vector
+Γ_v = ( Σ_g weight_g · γ_g ) / ( Σ_g weight_g )      // over status=active goals in the vector
 ```
 
 Then a gentle **staleness** decay, applied only to vectors whose contributing goals are `metric`/`milestone` (consistency self-registers neglect):
@@ -138,6 +140,8 @@ Code ranks contributors by `|W_v · Γ_v|`, attaches each one's dominant goal wi
 
 Rules: `kind` follows the matched goal's `type`. For `metric` goals report the observed `value`; for `consistency` report `occurredCount`; for `milestone` report `progressDelta`. If nothing matches a goal but it implies effort, emit `kind: "untagged"` (feeds the unaligned bucket). Never emit `progressDelta` for non-milestone goals.
 
+**Scope:** this contract is **progress logging only** — tagging effort/values to *existing* `status = active` goals. Creating new vectors/anchors/goals during a planning session uses the separate **session-authoring output** in `lifeOS-planning-sessions.md` §5.1; do not author goals through this contract.
+
 ### 3.2 Phrase (after recalculation)
 
 **Input:** `operatingLevel` + the ranked `contributors`.
@@ -170,7 +174,7 @@ These are feel-dials — calibrate by use, not by editing logic.
 - **Regression** → metric `c` falls naturally; manual milestone `δ` may be negative (hence −1..1).
 - **Stale metric value** → staleness decay + a "needs update" flag; don't blindly trust an old reading.
 - **Gaming** → metric/consistency are objective; milestone is capped per-input (`MAX_INPUT_DELTA`), confidence-weighted, and cumulatively clamped at 1.
-- **Quarter rollover** → close goals, carry anchors forward, reset `τ`, but keep the EMA running across the boundary (no discontinuity).
+- **Quarter rollover (session-driven, not calendar-driven)** → goals close, `τ` resets, and new goals' `startValue` re-baselines to current actuals **when a planning session commits** — not at the calendar date. Between the quarter boundary and that commit, hold the last computed score (a *review-due* state); do not auto-roll. Anchors persist; the EMA continues across the boundary (no discontinuity). See `lifeOS-planning-sessions.md` §3–§4.
 - **Mis-set pace curve** → always expose `c` vs `e` in the UI so the user recalibrates the curve instead of distrusting the score.
 
 ---
