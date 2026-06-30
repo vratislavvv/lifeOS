@@ -5,6 +5,7 @@ export type ChatMessage = { role: 'user' | 'lenna'; text: string };
 
 type ChatContext = {
   userName: string;
+  timezone: string;
   quarter: string;
   operatingLevel: number | null;
   vectorBreakdown: Record<string, number>;
@@ -76,8 +77,9 @@ export async function chatWithLenna(
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
 
-  const today = new Date().toISOString().split('T')[0];
-  const weekday = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const tz = context.timezone || 'UTC';
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });   // en-CA → YYYY-MM-DD
+  const weekday = new Date().toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' });
 
   const system = `You are Lenna, personal assistant inside ${context.userName}'s life OS.
 

@@ -83,6 +83,7 @@ export async function sendToLenna(
       text,
       {
         userName: u?.name ?? 'You',
+        timezone: u?.timezone ?? 'UTC',
         quarter,
         operatingLevel,
         vectorBreakdown,
