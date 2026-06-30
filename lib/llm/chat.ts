@@ -76,7 +76,12 @@ export async function chatWithLenna(
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
 
+  const today = new Date().toISOString().split('T')[0];
+  const weekday = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
   const system = `You are Lenna, personal assistant inside ${context.userName}'s life OS.
+
+Today is ${today} (${weekday}).
 
 Quarter: ${context.quarter} | Operating level: ${context.operatingLevel !== null ? `${context.operatingLevel}/100` : 'not computed yet'}
 ${context.justLogged ? `\nJust logged under ${context.justLogged.vectorId}: "${context.justLogged.summary}" (+${Math.round(context.justLogged.progressDelta * 100)}pp)` : ''}
