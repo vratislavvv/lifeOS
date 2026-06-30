@@ -12,6 +12,7 @@ type ChatContext = {
   vectors: { id: string; label: string }[];
   goals: { vectorId: string; description: string }[];
   groups: { id: string; name: string }[];
+  tasks: { id: string; title: string; done: boolean }[];
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
 };
 
@@ -20,7 +21,7 @@ export type ToolHandler = (name: string, input: Record<string, unknown>) => Prom
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'create_task_group',
-    description: "Create a new task group so tasks can be organised under it",
+    description: 'Create a new task group so tasks can be organised under it',
     input_schema: {
       type: 'object',
       properties: {
@@ -43,6 +44,17 @@ const TOOLS: Anthropic.Tool[] = [
         dueDate:   { type: 'string',  description: 'Optional due date in YYYY-MM-DD format' },
       },
       required: ['title'],
+    },
+  },
+  {
+    name: 'complete_task',
+    description: "Mark a task as done in the user's today list",
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The ID of the task to mark as done' },
+      },
+      required: ['taskId'],
     },
   },
   {
@@ -77,8 +89,13 @@ export async function chatWithLenna(
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
 
+  const pendingTasks = context.tasks.filter(t => !t.done);
+  const taskLines = pendingTasks.length > 0
+    ? pendingTasks.map(t => `- [${t.id}] ${t.title}`).join('\n')
+    : '(none)';
+
   const tz = context.timezone || 'UTC';
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });   // en-CA → YYYY-MM-DD
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
   const weekday = new Date().toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' });
 
   const system = `You are Lenna, personal assistant inside ${context.userName}'s life OS.
@@ -94,11 +111,16 @@ ${vectorLines}
 Task groups (use groupId when adding tasks):
 ${groupLines}
 
+Today's pending tasks (use taskId when completing):
+${taskLines}
+
 Rules:
 - Be direct and concise — 2–3 sentences max. No sycophancy, no filler.
-- When the user mentions ANYTHING they did or accomplished (workout, reading session, work done, habit completed, money saved, social event, anything), immediately call log_progress yourself — do NOT ask them to structure it or provide numbers. Infer the vector, write a short description, and estimate the delta from context. Just do it.
+- When the user mentions ANYTHING they did or accomplished (workout, reading session, work done, habit completed, money saved, social event, anything), immediately call log_progress yourself — do NOT ask them to structure it. Infer the vector, description, and delta. Just do it.
+- When the user says they completed, finished, or did something that vaguely matches a pending task, do NOT silently complete it. Instead ask: "Was that the '[task title]' on your list? Should I tick it off?" Then call complete_task only once they confirm.
+- When the user explicitly says to remove, tick off, or complete a task by name, call complete_task directly without asking.
 - When the user asks to add a task, call add_task. Infer importance and urgency from context.
-- If progress was already logged (shown above as "Just logged"), acknowledge it briefly and note the impact on their score.
+- If progress was already logged (shown above as "Just logged"), acknowledge it briefly and note the score impact.
 - Answer questions directly. Never ask the user to provide structured input — extract it yourself.`;
 
   const messages: Anthropic.MessageParam[] = [

@@ -24,6 +24,7 @@ export async function sendToLenna(
   const vecs = db.select().from(vectors).all();
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
+  const todayTasks = db.select().from(tasks).where(eq(tasks.date, today)).orderBy(asc(tasks.createdAt)).all();
 
   let extracted: Awaited<ReturnType<typeof extractInput>>;
   try {
@@ -90,6 +91,7 @@ export async function sendToLenna(
         vectors: vecs.map(v => ({ id: v.id, label: v.label })),
         goals: quarterGoals.map(g => ({ vectorId: g.vectorId ?? '', description: g.description ?? '' })),
         groups: groups.map(g => ({ id: g.id, name: g.name })),
+        tasks: todayTasks.map(t => ({ id: t.id, title: t.title, done: t.done })),
         justLogged,
       },
       history,
@@ -104,6 +106,14 @@ export async function sendToLenna(
           const inserted = db.insert(taskGroups).values(newGroup).returning().get();
           groups.push(inserted);
           return `Group "${inserted.name}" created (id: ${inserted.id}). You can now add tasks to it.`;
+        }
+
+        if (toolName === 'complete_task') {
+          const { taskId } = input as { taskId: string };
+          const task = todayTasks.find(t => t.id === taskId);
+          if (!task) return 'Task not found.';
+          db.update(tasks).set({ done: true }).where(eq(tasks.id, taskId)).run();
+          return `"${task.title}" marked as done.`;
         }
 
         if (toolName === 'add_task') {
