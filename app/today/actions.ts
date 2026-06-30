@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db, DEFAULT_GROUP_ID } from '@/lib/db';
 import { inputs, scores, vectors, goals, tasks, taskGroups, user as userTable } from '@/lib/db/schema';
+import { asc } from 'drizzle-orm';
 import { extractInput } from '@/lib/llm/extract';
 import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
 import { computeScore, quarterPaceNow } from '@/lib/scoring/compute';
@@ -22,7 +23,7 @@ export async function sendToLenna(
   const u = db.select().from(userTable).get();
   const vecs = db.select().from(vectors).all();
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
-  const groups = db.select().from(taskGroups).all();
+  const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
 
   let extracted: Awaited<ReturnType<typeof extractInput>>;
   try {
@@ -92,6 +93,18 @@ export async function sendToLenna(
       },
       history,
       async (toolName, input) => {
+        if (toolName === 'create_task_group') {
+          const { name, color } = input as { name: string; color?: string };
+          const trimmed = name.trim();
+          if (!trimmed) return 'Group name cannot be empty.';
+          const existing = groups.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
+          if (existing) return `Group "${existing.name}" already exists (id: ${existing.id}).`;
+          const newGroup = { name: trimmed, color: color ?? null, order: groups.length };
+          const inserted = db.insert(taskGroups).values(newGroup).returning().get();
+          groups.push(inserted);
+          return `Group "${inserted.name}" created (id: ${inserted.id}). You can now add tasks to it.`;
+        }
+
         if (toolName === 'add_task') {
           const { title, groupId, important, urgent, dueDate } = input as {
             title: string;

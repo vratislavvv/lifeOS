@@ -18,6 +18,18 @@ export type ToolHandler = (name: string, input: Record<string, unknown>) => Prom
 
 const TOOLS: Anthropic.Tool[] = [
   {
+    name: 'create_task_group',
+    description: "Create a new task group so tasks can be organised under it",
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:  { type: 'string', description: 'Display name for the group, e.g. "School"' },
+        color: { type: 'string', description: 'Optional hex color, e.g. "#7E6B8A"' },
+      },
+      required: ['name'],
+    },
+  },
+  {
     name: 'add_task',
     description: "Add a task to the user's today list",
     input_schema: {
