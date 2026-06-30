@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import { inputs, scores, vectors, goals, tasks, user as userTable } from '@/lib/db/schema';
+import { db, DEFAULT_GROUP_ID } from '@/lib/db';
+import { inputs, scores, vectors, goals, tasks, taskGroups, user as userTable } from '@/lib/db/schema';
 import { extractInput } from '@/lib/llm/extract';
 import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
 import { computeScore, quarterPaceNow } from '@/lib/scoring/compute';
@@ -22,6 +22,7 @@ export async function sendToLenna(
   const u = db.select().from(userTable).get();
   const vecs = db.select().from(vectors).all();
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
+  const groups = db.select().from(taskGroups).all();
 
   let extracted: Awaited<ReturnType<typeof extractInput>>;
   try {
@@ -86,13 +87,28 @@ export async function sendToLenna(
         vectorBreakdown,
         vectors: vecs.map(v => ({ id: v.id, label: v.label })),
         goals: quarterGoals.map(g => ({ vectorId: g.vectorId ?? '', description: g.description ?? '' })),
+        groups: groups.map(g => ({ id: g.id, name: g.name })),
         justLogged,
       },
       history,
       async (toolName, input) => {
         if (toolName === 'add_task') {
-          const { title } = input as { title: string };
-          db.insert(tasks).values({ title, date: today }).run();
+          const { title, groupId, important, urgent, dueDate } = input as {
+            title: string;
+            groupId?: string;
+            important?: boolean;
+            urgent?: boolean;
+            dueDate?: string;
+          };
+          const validGroupId = groups.find(g => g.id === groupId)?.id ?? DEFAULT_GROUP_ID;
+          db.insert(tasks).values({
+            title,
+            date: today,
+            groupId: validGroupId,
+            important: important ?? false,
+            urgent: urgent ?? false,
+            dueDate: dueDate ?? null,
+          }).run();
           return `Task "${title}" added to today's list.`;
         }
 

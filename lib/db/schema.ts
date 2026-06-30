@@ -62,11 +62,24 @@ export const inputs = sqliteTable("inputs", {
   createdAt:     integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+export const taskGroups = sqliteTable("task_groups", {
+  id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name:      text("name").notNull(),
+  color:     text("color"),
+  order:     integer("order").notNull().default(0),
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 export const tasks = sqliteTable("tasks", {
   id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  groupId:   text("group_id").notNull().references(() => taskGroups.id),
   date:      text("date").notNull(),
   title:     text("title").notNull(),
   done:      integer("done", { mode: "boolean" }).notNull().default(false),
+  important: integer("important", { mode: "boolean" }).notNull().default(false),
+  urgent:    integer("urgent", { mode: "boolean" }).notNull().default(false),
+  dueDate:   text("due_date"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 

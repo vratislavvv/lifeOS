@@ -10,6 +10,7 @@ type ChatContext = {
   vectorBreakdown: Record<string, number>;
   vectors: { id: string; label: string }[];
   goals: { vectorId: string; description: string }[];
+  groups: { id: string; name: string }[];
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
 };
 
@@ -22,7 +23,11 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: 'Concise, actionable task title' },
+        title:     { type: 'string',  description: 'Concise, actionable task title' },
+        groupId:   { type: 'string',  description: 'Task group ID. Omit to use the default Daily group.' },
+        important: { type: 'boolean', description: 'True if this task is important (high impact)' },
+        urgent:    { type: 'boolean', description: 'True if this task must be done today or very soon' },
+        dueDate:   { type: 'string',  description: 'Optional due date in YYYY-MM-DD format' },
       },
       required: ['title'],
     },
@@ -57,6 +62,8 @@ export async function chatWithLenna(
     return `- ${v.label}: ${status}${goal ? ` | goal: "${goal.description}"` : ''}`;
   }).join('\n');
 
+  const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
+
   const system = `You are Lenna, personal assistant inside ${context.userName}'s life OS.
 
 Quarter: ${context.quarter} | Operating level: ${context.operatingLevel !== null ? `${context.operatingLevel}/100` : 'not computed yet'}
@@ -65,7 +72,10 @@ ${context.justLogged ? `\nJust logged under ${context.justLogged.vectorId}: "${c
 Vector pace gaps (positive = ahead of pace, negative = behind):
 ${vectorLines}
 
-Be direct and concise — 2–3 sentences max. No sycophancy, no filler. Use tools when the user asks you to add a task or log progress on their behalf. If they logged something directly, acknowledge it and note the impact. Answer questions directly.`;
+Task groups (use groupId when adding tasks):
+${groupLines}
+
+Be direct and concise — 2–3 sentences max. No sycophancy, no filler. Use tools when the user asks you to add a task or log progress on their behalf. When adding a task, infer importance and urgency from context. If they logged something directly, acknowledge it and note the impact. Answer questions directly.`;
 
   const messages: Anthropic.MessageParam[] = [
     ...previousMessages.map(m => ({

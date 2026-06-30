@@ -8,19 +8,21 @@ import CalSection from './CalSection';
 import { sendToLenna } from './actions';
 import { toggleTask, deleteTask } from './taskActions';
 import type { ChatMessage } from '@/lib/llm/chat';
-import type { vectors, goals, scores, tasks, user } from '@/lib/db/schema';
+import type { vectors, goals, scores, tasks, taskGroups, user } from '@/lib/db/schema';
 
 type User = typeof user.$inferSelect;
 type Vector = typeof vectors.$inferSelect;
 type Goal = typeof goals.$inferSelect;
 type Score = typeof scores.$inferSelect;
 type Task = typeof tasks.$inferSelect;
+type TaskGroup = typeof taskGroups.$inferSelect;
 
 type Props = {
   user: User;
   vectors: Vector[];
   goals: Goal[];
   score: Score | null;
+  groups: TaskGroup[];
   todayTasks: Task[];
   currentQuarter: string;
   quarterPace: number;
@@ -33,7 +35,26 @@ function formatDate(d: Date) {
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
-export default function TodayShell({ user, vectors, goals, score, todayTasks, currentQuarter, quarterPace }: Props) {
+const TODAY_STR = new Date().toISOString().split('T')[0];
+
+function priorityClass(important: boolean, urgent: boolean) {
+  if (important && urgent)  return styles.prioHighHigh;
+  if (important && !urgent) return styles.prioHighLow;
+  if (!important && urgent) return styles.prioLowHigh;
+  return '';
+}
+
+function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean } | null {
+  if (!dueDate) return null;
+  const overdue = dueDate < TODAY_STR;
+  if (overdue) return { text: 'overdue', overdue: true };
+  if (dueDate === TODAY_STR) return { text: 'due today', overdue: false };
+  const d = new Date(dueDate + 'T00:00:00');
+  const label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return { text: `due ${label}`, overdue: false };
+}
+
+export default function TodayShell({ user, vectors, goals, score, groups, todayTasks, currentQuarter, quarterPace }: Props) {
   const today = new Date();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -178,25 +199,61 @@ export default function TodayShell({ user, vectors, goals, score, todayTasks, cu
               <div className={styles.emptyState}>No tasks yet — ask Lenna to add one.</div>
             ) : (
               <div className={styles.taskList}>
-                {todayTasks.map(task => (
-                  <div key={task.id} className={`${styles.taskRow} ${taskPending ? styles.taskPending : ''}`}>
-                    <button
-                      className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
-                      onClick={() => startTaskTransition(() => toggleTask(task.id))}
-                      title={task.done ? 'Mark undone' : 'Mark done'}
-                    />
-                    <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
-                      {task.title}
-                    </span>
-                    <button
-                      className={styles.taskDelete}
-                      onClick={() => startTaskTransition(() => deleteTask(task.id))}
-                      title="Delete"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                {groups
+                  .filter(g => todayTasks.some(t => t.groupId === g.id))
+                  .map(group => {
+                    const groupTasks = todayTasks
+                      .filter(t => t.groupId === group.id)
+                      .sort((a, b) => {
+                        const priority = (t: Task) =>
+                          t.important && t.urgent ? 0 :
+                          t.important ? 1 :
+                          t.urgent ? 2 : 3;
+                        return priority(a) - priority(b);
+                      });
+                    return (
+                      <div key={group.id} className={styles.taskGroup}>
+                        <div className={styles.taskGroupHeader}>{group.name}</div>
+                        {groupTasks.map(task => {
+                          const due = dueDateLabel(task.dueDate);
+                          return (
+                            <div
+                              key={task.id}
+                              className={[
+                                styles.taskRow,
+                                priorityClass(task.important, task.urgent),
+                                taskPending ? styles.taskPending : '',
+                              ].join(' ')}
+                            >
+                              <button
+                                className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
+                                onClick={() => startTaskTransition(() => toggleTask(task.id))}
+                                title={task.done ? 'Mark undone' : 'Mark done'}
+                              />
+                              <div className={styles.taskBody}>
+                                <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
+                                  {task.title}
+                                </span>
+                                {due && (
+                                  <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
+                                    {due.text}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                className={styles.taskDelete}
+                                onClick={() => startTaskTransition(() => deleteTask(task.id))}
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })
+                }
               </div>
             )}
           </div>
