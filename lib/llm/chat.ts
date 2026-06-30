@@ -94,7 +94,12 @@ ${vectorLines}
 Task groups (use groupId when adding tasks):
 ${groupLines}
 
-Be direct and concise — 2–3 sentences max. No sycophancy, no filler. Use tools when the user asks you to add a task or log progress on their behalf. When adding a task, infer importance and urgency from context. If they logged something directly, acknowledge it and note the impact. Answer questions directly.`;
+Rules:
+- Be direct and concise — 2–3 sentences max. No sycophancy, no filler.
+- When the user mentions ANYTHING they did or accomplished (workout, reading session, work done, habit completed, money saved, social event, anything), immediately call log_progress yourself — do NOT ask them to structure it or provide numbers. Infer the vector, write a short description, and estimate the delta from context. Just do it.
+- When the user asks to add a task, call add_task. Infer importance and urgency from context.
+- If progress was already logged (shown above as "Just logged"), acknowledge it briefly and note the impact on their score.
+- Answer questions directly. Never ask the user to provide structured input — extract it yourself.`;
 
   const messages: Anthropic.MessageParam[] = [
     ...previousMessages.map(m => ({
