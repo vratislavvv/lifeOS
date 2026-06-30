@@ -1,6 +1,6 @@
 # lifeOS
 
-** Custom built for personal usage **
+**Custom built for personal usage**
 
 A personal life operating system. Tracks progress across life vectors — Craft, Body, Money, Mind, Social, Rest — computes a daily operating level score, and surfaces everything through a single dashboard with an AI assistant called Lenna.
 
