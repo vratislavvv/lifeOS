@@ -1,0 +1,297 @@
+/* === Session full-screen layout === */
+.session {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── Chat panel (left, 55%) ── */
+.chatPanel {
+  flex: 0 0 55%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--hairline);
+  overflow: hidden;
+}
+
+.chatHeader {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.chatLogo {
+  font-size: 13px;
+  font-weight: 500;
+}
+.chatPhase {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.chatBody {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+.chatLoading {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.chatUser {
+  background: var(--surface-sunk);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-align: right;
+  align-self: flex-end;
+  max-width: 80%;
+  margin-left: auto;
+}
+
+.chatLenna { padding: 2px 0; }
+.chatLennaLabel {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  margin-bottom: 6px;
+}
+.chatLennaText {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+  max-width: 80%;
+}
+.chatPending {
+  color: var(--ink-faint);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.chatError {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--attention);
+  padding: 4px 0;
+}
+
+.chatInputWrap {
+  padding: 16px 24px;
+  border-top: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.chatInput {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--ink-faint);
+  resize: none;
+  outline: none;
+  min-height: 60px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.chatInput:focus {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.chatInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.chatInputHint {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* ── Drafts panel (right, 45%) ── */
+.draftsPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.draftsHeader {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+
+.draftsList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+.draftVector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.draftVector:last-child {
+  border-bottom: none;
+}
+
+.draftVectorHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draftDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.draftVectorName {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.draftAnchor {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 16px;
+}
+.draftAnchorLabel {
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+}
+.draftAnchorText {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.draftGoal {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  background: var(--surface-sunk);
+  border-radius: 8px;
+  margin-left: 16px;
+}
+.draftGoalDesc {
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.draftGoalMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.draftTypeBadge {
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.draftGoalSub {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+}
+
+.draftEmpty {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--hairline-strong);
+  padding-left: 16px;
+}
+
+/* ── Footer / commit ── */
+.draftsFooter {
+  padding: 16px 24px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.commitBtn {
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 8px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-faint);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: not-allowed;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.commitBtnReady {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  cursor: pointer;
+}
+.commitBtnReady:hover {
+  opacity: 0.85;
+}
+.commitHint {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  text-align: center;
+}

@@ -3,10 +3,8 @@ import styles from './setup.module.css';
 const STEPS = [
   { num: '01', name: 'You' },
   { num: '02', name: 'Vectors' },
-  { num: '03', name: 'Quarter' },
-  { num: '04', name: 'Connect' },
-  { num: '05', name: 'Lenna' },
-  { num: '06', name: 'Ready' },
+  { num: '03', name: 'Connect' },
+  { num: '04', name: 'Lenna' },
 ];
 
 export default function Rail({ currentStep }: { currentStep: number }) {
@@ -20,7 +18,7 @@ export default function Rail({ currentStep }: { currentStep: number }) {
       <div className={styles.stepList}>
         {STEPS.map((s, i) => {
           const n = i + 1;
-          const isDone = n < currentStep;
+          const isDone   = n < currentStep;
           const isActive = n === currentStep;
           return (
             <div
@@ -30,7 +28,7 @@ export default function Rail({ currentStep }: { currentStep: number }) {
               <span
                 className={[
                   styles.stepDot,
-                  isDone ? styles.stepDotDone : '',
+                  isDone   ? styles.stepDotDone   : '',
                   isActive ? styles.stepDotActive : '',
                 ].join(' ')}
               />
