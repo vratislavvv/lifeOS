@@ -70,6 +70,7 @@
   cursor: pointer;
   gap: 7px;
   user-select: none;
+  text-decoration: none;
   transition: background 0.1s, color 0.1s;
 }
 .navLink:hover { background: var(--surface); color: var(--ink); }

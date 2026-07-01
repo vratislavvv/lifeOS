@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './today.module.css';
 import Clock from './Clock';
 import FocusTimer from './FocusTimer';
@@ -141,7 +142,7 @@ export default function TodayShell({ user, vectors, goals, score, groups, todayT
               <div className={`${styles.navLink} ${styles.navLinkActive}`}>Today</div>
             </div>
             <div className={styles.navItem}>
-              <div className={styles.navLink}>Quarter</div>
+              <Link href="/quarter" className={styles.navLink}>Quarter</Link>
             </div>
             <div className={styles.navItem}>
               <div className={styles.navLink}>Focus</div>

@@ -1,0 +1,481 @@
+/* === App shell (shared chrome) === */
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* === Sidebar === */
+.sidebar {
+  width: 190px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.sidebarBody {
+  padding: 11px 10px 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.sidebarLogo {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.navTree {
+  margin-left: 7px;
+  position: relative;
+  flex: 1;
+}
+.navTree::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 143px;
+  width: 1px;
+  background: var(--hairline);
+}
+.navItem {
+  position: relative;
+  padding-left: 13px;
+  margin-bottom: 2px;
+}
+.navItem::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15px;
+  width: 11px;
+  height: 1px;
+  background: var(--hairline);
+}
+.navLink {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  cursor: pointer;
+  gap: 7px;
+  user-select: none;
+  text-decoration: none;
+  transition: background 0.1s, color 0.1s;
+}
+.navLink:hover { background: var(--surface); color: var(--ink); }
+.navLinkActive { background: var(--surface-sunk); color: var(--ink); font-weight: 500; }
+.navToggle { font-size: 7px; transform: translateY(1px); }
+.navChildren {
+  margin-left: 20px;
+  position: relative;
+  margin-top: 2px;
+}
+.navChild {
+  position: relative;
+  padding-left: 12px;
+  margin-bottom: 2px;
+}
+.navChild::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 10px;
+  height: 1px;
+  background: var(--hairline);
+}
+.navChild .navLink { height: 28px; }
+.vecDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.sidebarFooter {
+  padding: 6px;
+  border-top: 1px solid var(--hairline);
+}
+.sidebarFooterLink {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.sidebarFooterLink:hover { background: var(--surface); color: var(--ink-soft); }
+
+/* === Content === */
+.content {
+  flex: 1;
+  overflow: hidden;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.contentHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.headerTitle { font-size: 18px; font-weight: 500; }
+.headerDate  { font-size: 11px; font-family: var(--font-mono); color: var(--ink-soft); margin-top: 3px; }
+.headerScore { text-align: right; }
+.scoreNum {
+  font-size: 36px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink-faint);
+}
+.scoreNumSet { color: var(--ink); }
+.scoreLabel  { font-size: 10px; color: var(--ink-faint); margin-top: 3px; }
+
+/* === Island row === */
+.row { display: flex; gap: 10px; flex-shrink: 0; }
+.island {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+}
+.islandLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* === τ bar island === */
+.tauIsland { flex: 1; }
+.tauTrack {
+  height: 8px;
+  background: var(--surface-sunk);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.tauFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--ink-soft);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+.tauMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.tauPct  { font-size: 13px; font-weight: 500; font-family: var(--font-mono); }
+.tauDays { font-size: 11px; font-family: var(--font-mono); color: var(--ink-faint); }
+
+/* === OL / sparkline island === */
+.olIsland {
+  width: 156px;
+  flex-shrink: 0;
+  justify-content: space-between;
+}
+.sparkSvg { display: block; }
+.sparkEmpty {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  padding: 8px 0;
+}
+
+/* === Vector sections === */
+.vectorSections {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* thin scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+.vectorSection {
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  padding: 12px 15px 14px;
+}
+
+.vectorSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.vdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.vsectionLabel {
+  font-size: 12px;
+  font-weight: 500;
+  flex: 1;
+}
+.vecGapBadge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+}
+.vecGapAhead  { color: var(--positive); border-color: var(--positive); }
+.vecGapBehind { color: var(--attention); border-color: var(--attention); }
+
+.noGoal {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  padding: 4px 0;
+}
+
+/* === Goal card === */
+.goalCard {
+  padding: 10px 0;
+  border-top: 1px solid var(--hairline);
+}
+.goalCard:first-of-type { padding-top: 0; border-top: none; }
+
+.goalDesc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.goalMeta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+.typeBadge {
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.gapBadge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.gapAhead  { color: var(--positive); }
+.gapBehind { color: var(--attention); }
+
+/* Progress track */
+.goalTrackWrap {
+  position: relative;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.goalTrackBg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-sunk);
+}
+.goalFill {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ink-soft);
+  transition: width 0.4s ease;
+}
+.goalPaceTick {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 10px;
+  background: var(--ink-faint);
+  border-radius: 1px;
+}
+
+.goalNums {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.goalC   { font-size: 10px; font-family: var(--font-mono); color: var(--ink-soft); }
+.goalSep { font-size: 10px; color: var(--hairline-strong); }
+.goalE   { font-size: 10px; font-family: var(--font-mono); color: var(--ink-faint); }
+
+/* === Resize handle === */
+.resizeHandle {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--surface-sunk);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  border-left: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
+}
+.handleDots { display: flex; flex-direction: column; gap: 3px; }
+.handleDot  { width: 2px; height: 2px; border-radius: 50%; background: var(--ink-faint); }
+
+/* === Lenna assistant === */
+.assistant {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.assistantHeader {
+  padding: 13px 12px 11px;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.assistantTitle    { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+.assistantCollapse {
+  font-size: 10px;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  padding: 2px 7px;
+  cursor: pointer;
+  background: none;
+}
+.assistantBody {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.assistantInputWrap {
+  padding: 10px;
+  border-top: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.assistantInput {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--ink-faint);
+  min-height: 52px;
+  width: 100%;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.assistantInput:focus { border-color: var(--hairline-strong); color: var(--ink); }
+.assistantInputHint  {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* === Chat === */
+.chatUser {
+  background: var(--surface-sunk);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-align: right;
+  align-self: flex-end;
+  max-width: 90%;
+  margin-left: auto;
+}
+.chatLenna { padding: 2px 0; }
+.chatLennaLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.chatLennaText { font-size: 12px; line-height: 1.6; color: var(--ink); }
+.chatPending {
+  color: var(--ink-faint);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* === Lenna collapsed strip === */
+.lennaStrip {
+  width: 28px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--surface-sunk);
+  transition: background 0.1s;
+}
+.lennaStrip:hover { background: var(--surface); }
+.lennaStripLabel {
+  font-size: 10px;
+  color: var(--ink-faint);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  user-select: none;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.lennaStrip:hover .lennaStripLabel { color: var(--ink-soft); }
