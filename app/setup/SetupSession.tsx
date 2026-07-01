@@ -6,6 +6,7 @@ import type { VectorKey } from '@/lib/vectors';
 import { startSetupSession, setupSessionTurn, commitSetupSession } from './sessionActions';
 import type { ChatMessage } from '@/lib/llm/setupChat';
 import type { SetupData } from './types';
+import { LennaText } from '@/lib/renderMarkdown';
 import styles from './session.module.css';
 
 type Anchor = {
@@ -45,11 +46,13 @@ export default function SetupSession({ data }: Props) {
   const firstName      = data.name.trim().split(' ')[0] || 'you';
   const selectedVectors = data.vectors.map(k => ({ id: k, label: VECTORS[k].label }));
 
-  const [sessionId,   setSessionId]   = useState<string | null>(null);
-  const [quarter,     setQuarter]     = useState('');
-  const [phase,       setPhase]       = useState('orient');
-  const [anchors,     setAnchors]     = useState<Anchor[]>([]);
-  const [draftGoals,  setDraftGoals]  = useState<DraftGoal[]>([]);
+  const [sessionId,          setSessionId]          = useState<string | null>(null);
+  const [quarter,            setQuarter]            = useState('');
+  const [phase,              setPhase]              = useState('orient');
+  const [anchors,            setAnchors]            = useState<Anchor[]>([]);
+  const [draftGoals,         setDraftGoals]         = useState<DraftGoal[]>([]);
+  const [skippedGoalVectors, setSkippedGoalVectors] = useState<string[]>([]);
+  const [removedVectors,     setRemovedVectors]     = useState<string[]>([]);
   const [messages,    setMessages]    = useState<ChatMessage[]>([]);
   const [inputText,   setInputText]   = useState('');
   const [inputError,  setInputError]  = useState<string | null>(null);
@@ -94,10 +97,14 @@ export default function SetupSession({ data }: Props) {
         setMessages(m => m.slice(0, -1));
         return;
       }
-      if (result.reply)     setMessages(m => [...m, { role: 'lenna', text: result.reply }]);
-      if (result.phase)     setPhase(result.phase);
-      if (result.anchors)   setAnchors(result.anchors);
+      if (result.reply)      setMessages(m => [...m, { role: 'lenna', text: result.reply }]);
+      if (result.phase)      setPhase(result.phase);
+      if (result.anchors)    setAnchors(result.anchors);
       if (result.draftGoals) setDraftGoals(result.draftGoals);
+      if (result.skippedGoalVectors?.length)
+        setSkippedGoalVectors(prev => [...new Set([...prev, ...result.skippedGoalVectors])]);
+      if (result.removedVectors?.length)
+        setRemovedVectors(prev => [...new Set([...prev, ...result.removedVectors])]);
     });
   }
 
@@ -129,7 +136,7 @@ export default function SetupSession({ data }: Props) {
             ) : (
               <div key={i} className={styles.chatLenna}>
                 <div className={styles.chatLennaLabel}>lenna</div>
-                <div className={styles.chatLennaText}>{m.text}</div>
+                <LennaText text={m.text} className={styles.chatLennaText} />
               </div>
             )
           )}
@@ -171,41 +178,51 @@ export default function SetupSession({ data }: Props) {
         <div className={styles.draftsHeader}>This quarter</div>
 
         <div className={styles.draftsList}>
-          {data.vectors.map(key => {
-            const v       = VECTORS[key as VectorKey];
-            const anchor  = anchors.find(a => a.vectorId === key);
-            const goal    = draftGoals.find(g => g.vectorId === key);
+          {data.vectors
+            .filter(key => !removedVectors.includes(key))
+            .map(key => {
+              const v       = VECTORS[key as VectorKey];
+              const anchor  = anchors.find(a => a.vectorId === key);
+              const goal    = draftGoals.find(g => g.vectorId === key);
+              const skipped = skippedGoalVectors.includes(key);
 
-            return (
-              <div key={key} className={styles.draftVector}>
-                <div className={styles.draftVectorHead}>
-                  <span className={styles.draftDot} style={{ background: v.color }} />
-                  <span className={styles.draftVectorName}>{v.label}</span>
-                </div>
-
-                {anchor ? (
-                  <div className={styles.draftAnchor}>
-                    <span className={styles.draftAnchorLabel}>anchor</span>
-                    <span className={styles.draftAnchorText}>{anchor.description}</span>
+              return (
+                <div key={key} className={styles.draftVector}>
+                  <div className={styles.draftVectorHead}>
+                    <span className={styles.draftDot} style={{ background: v.color }} />
+                    <span className={styles.draftVectorName}>{v.label}</span>
                   </div>
-                ) : (
-                  <div className={styles.draftEmpty}>anchor pending</div>
-                )}
 
-                {goal ? (
-                  <div className={styles.draftGoal}>
-                    <div className={styles.draftGoalDesc}>{goal.description}</div>
-                    <div className={styles.draftGoalMeta}>
-                      <span className={styles.draftTypeBadge}>{goal.type}</span>
-                      <span className={styles.draftGoalSub}>{goalSubline(goal)}</span>
+                  {anchor ? (
+                    <div className={styles.draftAnchor}>
+                      <span className={styles.draftAnchorLabel}>anchor</span>
+                      <span className={styles.draftAnchorText}>{anchor.description}</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className={styles.draftEmpty}>goal pending</div>
-                )}
-              </div>
-            );
-          })}
+                  ) : (
+                    <div className={styles.draftEmpty}>anchor pending</div>
+                  )}
+
+                  {goal ? (
+                    <div className={styles.draftGoal}>
+                      <div className={styles.draftGoalDesc}>{goal.description}</div>
+                      <div className={styles.draftGoalMeta}>
+                        <span className={styles.draftTypeBadge}>{goal.type}</span>
+                        <span className={styles.draftGoalSub}>{goalSubline(goal)}</span>
+                      </div>
+                    </div>
+                  ) : skipped ? (
+                    <div className={styles.draftSkipped}>sitting out this quarter</div>
+                  ) : (
+                    <div className={styles.draftEmpty}>goal pending</div>
+                  )}
+                </div>
+              );
+            })}
+          {removedVectors.length > 0 && (
+            <div className={styles.draftRemovedNote}>
+              {removedVectors.map(id => VECTORS[id as VectorKey]?.label ?? id).join(', ')} removed from profile
+            </div>
+          )}
         </div>
 
         <div className={styles.draftsFooter}>

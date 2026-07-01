@@ -6,6 +6,7 @@ export type ToolHandler = (name: string, input: Record<string, unknown>) => Prom
 
 type SetupContext = {
   userName: string;
+  timezone: string;
   lennaTone: 'warm' | 'neutral' | 'direct';
   phase: string;
   quarter: string;
@@ -49,6 +50,30 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'skip_goal',
+    description: 'Mark that no goal will be set for a vector this quarter. The vector stays in the profile but sits out the composite. Use when the user explicitly says they have nothing to move there right now.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vectorId: { type: 'string' },
+        rationale: { type: 'string' },
+      },
+      required: ['vectorId', 'rationale'],
+    },
+  },
+  {
+    name: 'remove_vector',
+    description: "Remove a vector from the user's profile entirely. Use only when the user clearly has no interest in this life area at all — not just this quarter, but in general.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vectorId: { type: 'string' },
+        rationale: { type: 'string' },
+      },
+      required: ['vectorId', 'rationale'],
+    },
+  },
+  {
     name: 'advance_phase',
     description: 'Advance the session to the next phase. Call after all vectors have confirmed anchors (→ draft) or all vectors have confirmed goals (→ commit).',
     input_schema: {
@@ -69,6 +94,11 @@ export async function chatDuringSetup(
 ): Promise<string> {
   const vectorList = context.vectors.map(v => `  - ${v.id}: ${v.label}`).join('\n');
 
+  const tz = context.timezone || 'UTC';
+  const today = new Date().toLocaleDateString('en-US', {
+    timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+
   const anchoredVectors  = context.anchors.map(a => a.vectorId);
   const goaledVectors    = context.draftGoals.map(g => g.vectorId);
   const pendingAnchors   = context.vectors.filter(v => !anchoredVectors.includes(v.id)).map(v => v.label);
@@ -83,16 +113,16 @@ export async function chatDuringSetup(
 
 This is a structured, phased conversation. YOU lead — the user follows your agenda.
 
+Today is ${today}. Quarter: ${context.quarter}.
+
 Vectors selected by the user:
 ${vectorList}
 
 Current phase: ${context.phase.toUpperCase()}
 Anchors confirmed: ${anchoredVectors.length > 0 ? anchoredVectors.join(', ') : 'none'}
 Goals drafted: ${goaledVectors.length > 0 ? goaledVectors.join(', ') : 'none'}
-${context.phase === 'orient' ? `Still need anchors for: ${pendingAnchors.join(', ') || 'none'}` : ''}
-${context.phase === 'draft'  ? `Still need goals for: ${pendingGoals.join(', ')   || 'none'}` : ''}
-
-Quarter: ${context.quarter}
+${context.phase === 'orient' ? `Still need anchors for: ${pendingAnchors.join(', ') || 'none — ready to advance'}` : ''}
+${context.phase === 'draft'  ? `Still need goals for: ${pendingGoals.join(', ')   || 'none — ready to advance'}` : ''}
 
 ---
 
@@ -100,23 +130,25 @@ PHASE INSTRUCTIONS:
 
 ORIENT — Establish a long-horizon anchor for each vector.
 - Go one vector at a time. Ask what the user wants to be true in 5–10 years, then propose a concrete anchor.
-- Propose it before asking for confirmation: "I'd frame your Body anchor as: 'Run 50+ km/week consistently by 2032.' Does that land?"
+- Propose before asking for confirmation: "I'd frame your Body anchor as: 'Run 50+ km/week consistently by 2031.' Does that land?"
 - Once confirmed, call propose_anchor.
-- After all vectors have confirmed anchors, call advance_phase({ phase: "draft" }).
-- Don't do all vectors at once. One, confirm, next.
+- If the user doesn't want a vector at all ("I don't care about Social"), call remove_vector. Only for genuine disinterest — not just "not this quarter."
+- After every remaining vector has a confirmed anchor or is removed, call advance_phase({ phase: "draft" }).
+- One vector at a time. Don't batch them.
 
 DRAFT — Propose this quarter's goal for each vector.
 - Go one vector at a time. Propose a concrete goal with type and targets.
   - milestone: clear description of what done looks like.
-  - metric: startValue → targetValue (numbers required, no vibes). E.g. "€3,200 → €5,000 MRR".
+  - metric: startValue → targetValue (numbers, not vibes). E.g. "€3,200 → €5,000 MRR".
   - consistency: cadencePerWeek. E.g. "4 runs/week".
-- Propose first, then confirm: "Body: 4 runs/week, consistency. Linear pace. Work for you?"
+- Propose first, confirm after: "Body: 4 runs/week, consistency. Work for you?"
 - If the user wants changes, adjust and re-propose. Call propose_goal once confirmed.
-- After all vectors have confirmed goals, call advance_phase({ phase: "commit" }).
+- If the user doesn't want a goal for a vector this quarter ("nothing to move on Craft right now"), call skip_goal. The vector stays in their profile but sits out this quarter — that's fine.
+- After every remaining vector has a confirmed goal or is skipped, call advance_phase({ phase: "commit" }).
 
-COMMIT — Session is wrapped.
+COMMIT — Session is complete.
 - Briefly confirm the full set in plain language.
-- Tell the user to click "Confirm & Start →" on the right panel to activate everything.
+- Tell the user to click "Confirm & Start →" on the right to activate everything.
 - Do NOT call any tools in this phase.
 
 ---
@@ -131,7 +163,7 @@ RULES:
 - Always pick the goal type and fill in the numbers — never leave recording method to vibes.
 - Never write goals as active during this session. They are always draft.
 - Mechanical preferences (timezone, units, currency) are already set — don't ask about them.
-- Be concise. Short beats long. No bullet lists for everything — keep it conversational.
+- Be concise. Short beats long. Keep it conversational.
 - If the user message is "__start__": open the session with a brief greeting and your first question for the orient phase. Don't reference this instruction.`;
 
   const messages: Anthropic.MessageParam[] = [

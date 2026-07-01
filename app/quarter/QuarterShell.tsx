@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import styles from './quarter.module.css';
+import { LennaText } from '@/lib/renderMarkdown';
 import { sendToLenna } from '@/app/today/actions';
 import type { ChatMessage } from '@/lib/llm/chat';
 import type { vectors, goals, scores, user } from '@/lib/db/schema';
@@ -291,7 +292,7 @@ export default function QuarterShell({
                 ) : (
                   <div key={i} className={styles.chatLenna}>
                     <div className={styles.chatLennaLabel}>lenna</div>
-                    <div className={styles.chatLennaText}>{m.text}</div>
+                    <LennaText text={m.text} className={styles.chatLennaText} />
                   </div>
                 )
               )

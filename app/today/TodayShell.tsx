@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import styles from './today.module.css';
+import { LennaText } from '@/lib/renderMarkdown';
 import Clock from './Clock';
 import FocusTimer from './FocusTimer';
 import CalSection from './CalSection';
@@ -362,7 +363,7 @@ export default function TodayShell({ user, vectors, goals, score, groups, todayT
                 ) : (
                   <div key={i} className={styles.chatLenna}>
                     <div className={styles.chatLennaLabel}>lenna</div>
-                    <div className={styles.chatLennaText}>{m.text}</div>
+                    <LennaText text={m.text} className={styles.chatLennaText} />
                   </div>
                 )
               )

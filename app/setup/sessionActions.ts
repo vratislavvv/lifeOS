@@ -88,11 +88,13 @@ export async function startSetupSession(
 // ── 2. Chat turn ─────────────────────────────────────────────────────────────
 
 type TurnResult = {
-  reply:      string;
-  phase:      string;
-  anchors:    { id: string; vectorId: string; description: string; headlineMetric: string | null; targetAge: number | null }[];
-  draftGoals: { id: string; vectorId: string; description: string; type: string; startValue: number | null; targetValue: number | null; cadencePerWeek: number | null; paceShape: string }[];
-  error?:     string;
+  reply:               string;
+  phase:               string;
+  anchors:             { id: string; vectorId: string; description: string; headlineMetric: string | null; targetAge: number | null }[];
+  draftGoals:          { id: string; vectorId: string; description: string; type: string; startValue: number | null; targetValue: number | null; cadencePerWeek: number | null; paceShape: string }[];
+  skippedGoalVectors:  string[];
+  removedVectors:      string[];
+  error?:              string;
 };
 
 export async function setupSessionTurn(
@@ -103,7 +105,7 @@ export async function setupSessionTurn(
   selectedVectors: { id: string; label: string }[]
 ): Promise<TurnResult> {
   const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-  if (!session) return { reply: '', phase: 'orient', anchors: [], draftGoals: [], error: 'Session not found.' };
+  if (!session) return { reply: '', phase: 'orient', anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: 'Session not found.' };
 
   const u = db.select().from(user).get();
 
@@ -116,13 +118,16 @@ export async function setupSessionTurn(
     .all();
 
   let finalPhase = session.phase;
+  const skippedGoalVectors: string[] = [];
+  const removedVectors: string[] = [];
 
   let reply: string;
   try {
     reply = await chatDuringSetup(
       message,
       {
-        userName:   u?.name  ?? 'You',
+        userName:   u?.name     ?? 'You',
+        timezone:   u?.timezone ?? 'UTC',
         lennaTone:  (u?.lennaTone ?? 'warm') as 'warm' | 'neutral' | 'direct',
         phase:      session.phase,
         quarter,
@@ -190,6 +195,27 @@ export async function setupSessionTurn(
           return `Goal for ${vectorId} drafted: "${description}" (${type})`;
         }
 
+        if (toolName === 'skip_goal') {
+          const { vectorId } = input as { vectorId: string; rationale: string };
+          skippedGoalVectors.push(vectorId);
+          return `Goal for ${vectorId} skipped this quarter.`;
+        }
+
+        if (toolName === 'remove_vector') {
+          const { vectorId } = input as { vectorId: string; rationale: string };
+          // Remove anchor if any
+          const existingAnchor = db.select().from(anchors).where(eq(anchors.vectorId, vectorId)).get();
+          if (existingAnchor) db.delete(anchors).where(eq(anchors.id, existingAnchor.id)).run();
+          // Remove draft goals if any
+          db.delete(goals)
+            .where(and(eq(goals.vectorId, vectorId), eq(goals.status, 'draft')))
+            .run();
+          // Remove the vector itself
+          db.delete(vectors).where(eq(vectors.id, vectorId)).run();
+          removedVectors.push(vectorId);
+          return `${vectorId} removed from your vectors.`;
+        }
+
         if (toolName === 'advance_phase') {
           const { phase } = input as { phase: 'draft' | 'commit' };
           db.update(sessions).set({ phase }).where(eq(sessions.id, sessionId)).run();
@@ -202,7 +228,7 @@ export async function setupSessionTurn(
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    return { reply: '', phase: finalPhase, anchors: [], draftGoals: [], error: msg };
+    return { reply: '', phase: finalPhase, anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: String(msg) };
   }
 
   // Reload state after tools ran
@@ -214,16 +240,18 @@ export async function setupSessionTurn(
 
   return {
     reply,
-    phase:      finalPhase,
-    anchors:    updatedAnchors.map(a => ({
+    phase:              finalPhase,
+    anchors:            updatedAnchors.map(a => ({
       id: a.id, vectorId: a.vectorId, description: a.description,
       headlineMetric: a.headlineMetric, targetAge: a.targetAge,
     })),
-    draftGoals: updatedGoals.map(g => ({
+    draftGoals:         updatedGoals.map(g => ({
       id: g.id, vectorId: g.vectorId, description: g.description,
       type: g.type, startValue: g.startValue, targetValue: g.targetValue,
       cadencePerWeek: g.cadencePerWeek, paceShape: g.paceShape,
     })),
+    skippedGoalVectors,
+    removedVectors,
   };
 }
 

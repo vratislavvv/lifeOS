@@ -256,6 +256,21 @@
   color: var(--hairline-strong);
   padding-left: 16px;
 }
+.draftSkipped {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  padding-left: 16px;
+  font-style: italic;
+}
+.draftRemovedNote {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+  margin-top: 4px;
+}
 
 /* ── Footer / commit ── */
 .draftsFooter {

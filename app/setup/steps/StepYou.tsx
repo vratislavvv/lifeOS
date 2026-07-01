@@ -68,7 +68,7 @@ export default function StepYou({ data, onChange, onNext, onBack }: StepProps) {
         </div>
       </div>
 
-      <NavRow onBack={onBack} onNext={onNext} />
+      <NavRow onBack={onBack} onNext={data.name.trim() ? onNext : undefined} />
     </div>
   );
 }
