@@ -168,11 +168,54 @@ Rules: goal drafts land as `goals` rows with **`status: draft`** (then `proposed
 
 ## 9. Build order
 
-1. `sessions` table + `goals.status` migration.
-2. Setup session (Phases 1–3) end-to-end, writing real `vectors`/`anchors`/`goals` via the extract contract — replace the current vague intake entirely.
-3. Deterministic quarter-report summary function (testable, numbers-only).
-4. Quarter review→replan session (Phases 1–4), boundary auto-creation, re-baselining on commit.
-5. On-demand replan.
-6. Wire Lenna's drafting + backbone behavior; confirm propose→confirm gating prevents any pre-commit writes.
+1. ✅ `sessions` table + `goals.status` migration.
+2. ✅ Setup session (Phases 1–3) end-to-end, writing real `vectors`/`anchors`/`goals` via the extract contract — replace the current vague intake entirely.
+3. ✅ Deterministic quarter-report summary function (testable, numbers-only).
+4. ✅ Quarter review→replan session (Phases 1–4), boundary auto-creation, re-baselining on commit.
+5. ✅ On-demand replan (`replan_ondemand` session type, mid-quarter, starts at DISCUSS).
+6. ✅ Wire `lennaAutonomy` to actual behavior — `suggest` / `draft` / `act` modes in DRAFT/REPLAN phases of all three session types.
 
 Keep the dashboard assistant untouched in this work — it's a different mode (§4) and lands in its own pass.
+
+---
+
+## 10. Implementation notes (as-built, §9.1–9.6)
+
+### Schema
+
+`sessions` table and `goals.status` enum are live. Migration strategy: `pragma table_info` at startup; `CREATE TABLE IF NOT EXISTS` for fresh DBs; `ALTER TABLE ADD COLUMN` for existing ones. Cold start creates `lifeos.db` clean.
+
+### Setup session tool API (`lib/llm/setupChat.ts`)
+
+| Tool | When Lenna calls it | DB effect |
+|---|---|---|
+| `propose_anchor` | User agrees on an anchor | Upserts `anchors` row (replaces if Lenna revises) |
+| `propose_goal` | User agrees on a goal | Upserts `goals` row with `status: draft` |
+| `skip_goal` | User has nothing to move on a vector this quarter | No DB write; tracked per-turn as `skippedGoalVectors` |
+| `remove_vector` | User has no interest in a vector at all (not just this quarter) | Deletes anchor + draft goals + vector row from DB |
+| `advance_phase` | All remaining vectors are resolved (goal or skip in draft; anchor or remove in orient) | Updates `sessions.phase`; unlocks commit button on client |
+
+### Phase gating
+
+The "Confirm & Start →" button is disabled until Lenna explicitly calls `advance_phase({ phase: 'commit' })`. That tool call is the authoritative signal — the commit button does not enable on client-derived state alone. Each turn passes the cumulative `skippedGoalVectors` and `removedVectors` into Lenna's context so her `pendingGoals` / `pendingAnchors` lists are accurate, and the system prompt instructs her to call `advance_phase` immediately when those lists read "none".
+
+### skip vs remove distinction
+
+- `skip_goal`: vector stays in the user's profile; sits out this quarter's composite (no goal → excluded from weighted average). Anchor persists. Vector appears in the drafts panel as "sitting out this quarter."
+- `remove_vector`: vector, its anchor, and any draft goals are deleted from DB. Used only for genuine disinterest in the life area entirely, not for quarter-level pauses.
+
+### Commit
+
+`commitSetupSession` flips all `status: draft` goals for the quarter to `status: active`, closes the session (`status: complete`, `committedGoalIds` recorded), sets `user.setupDone = true`, and redirects to `/today`. If a vector was skipped it simply has no active goal; if removed it is gone from the profile.
+
+### Scoring engine (§9.3–9.4, now live)
+
+`lib/scoring/` implements all 7 stages: completion → pace → gap+staleness → alignment → composite G → EMA → contributors. `/quarter` shows exact `c` vs `e` from the same engine (not an approximation). `phrase.ts` (§3.2) generates one-sentence score explanations asynchronously after each `log_progress` call.
+
+### On-demand replan (§9.5)
+
+`/quarter/replan` finds or creates an open `replan_ondemand` session. Phase sequence: DISCUSS → REPLAN → COMMIT. `abandon_goal` writes `status: abandoned` immediately; new goals get `startDate: today` so τ is correct for the remaining window.
+
+### `lennaAutonomy` (§9.6)
+
+`suggest` / `draft` / `act` gate the goal-authoring instructions in all three session types via `goalDraftInstruction(autonomy)` helpers in `setupChat.ts`, `reviewChat.ts`, and `replanChat.ts`. The setting is read from the DB on every turn.

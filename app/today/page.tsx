@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { and, asc, desc, eq, lt } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { user, vectors, goals, scores, tasks, taskGroups } from '@/lib/db/schema';
-import { quarterPaceNow } from '@/lib/scoring/compute';
+import { quarterPaceNow } from '@/lib/scoring/pace';
 import TodayShell from './TodayShell';
 
 export const dynamic = 'force-dynamic';

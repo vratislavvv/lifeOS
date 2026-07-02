@@ -120,7 +120,6 @@ export const sessions = sqliteTable("sessions", {
 });
 
 // One row per recalculation. calibrating state = absence of a row for that date.
-// vectorBreakdown is kept alive until contributors is fully wired; stop writing it then.
 export const scores = sqliteTable("scores", {
   id:               text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   date:             text("date").notNull(),

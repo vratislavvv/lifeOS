@@ -1,34 +1,21 @@
-'use client';
-
-import { useState } from 'react';
 import type { StepProps } from '../types';
 import styles from '../setup.module.css';
 import NavRow from '../NavRow';
 
 const CONNECTIONS = [
-  { id: 'strava',    label: 'Strava',           icon: 'S', tag: 'Body',     tagColor: '#7E8A6B' },
-  { id: 'notion',    label: 'Notion',            icon: 'N', tag: 'Craft',    tagColor: '#B0853F' },
-  { id: 'gcal',      label: 'Google Calendar',   icon: 'C', tag: 'Schedule', tagColor: '#9A968B' },
-  { id: 'monarch',   label: 'Monarch',           icon: 'M', tag: 'Money',    tagColor: '#6B7E8A' },
+  { id: 'strava',  label: 'Strava',         icon: 'S', tag: 'Body',     tagColor: '#7E8A6B' },
+  { id: 'notion',  label: 'Notion',          icon: 'N', tag: 'Craft',    tagColor: '#B0853F' },
+  { id: 'gcal',    label: 'Google Calendar', icon: 'C', tag: 'Schedule', tagColor: '#9A968B' },
+  { id: 'monarch', label: 'Monarch',         icon: 'M', tag: 'Money',    tagColor: '#6B7E8A' },
 ];
 
 export default function StepConnect({ onNext, onBack }: StepProps) {
-  const [connected, setConnected] = useState<Set<string>>(new Set());
-
-  function toggle(id: string) {
-    setConnected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
   return (
     <div className={styles.stepPane}>
       <h2 className={styles.stepHeadline}>Connect your data.</h2>
       <p className={styles.stepSub}>
-        lifeOS reads your sources so you don't have to report in.
-        Connect what you have — skip the rest and add later.
+        lifeOS will read your sources so you don't have to report in.
+        Integrations are coming soon — skip for now and add them later.
       </p>
 
       <div className={styles.connectionsList}>
@@ -42,20 +29,9 @@ export default function StepConnect({ onNext, onBack }: StepProps) {
                 <span className={styles.connectionTagLabel}>{c.tag}</span>
               </div>
             </div>
-            {connected.has(c.id) ? (
-              <div className={styles.badgeConnected}>
-                <span className={styles.badgeDot} />
-                Connected
-              </div>
-            ) : (
-              <button
-                type="button"
-                className={styles.btnConnect}
-                onClick={() => toggle(c.id)}
-              >
-                Connect
-              </button>
-            )}
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-faint)', fontWeight: 500 }}>
+              coming soon
+            </div>
           </div>
         ))}
       </div>

@@ -24,7 +24,7 @@ Operates on the existing schema plus these required deltas:
 - `inputs`: add `value: real?` (observed metric reading, distinct from progress), `durationMin: real?` (for alignment), and widen `progressDelta` to **−1..1**.
 - `scores`: add `operatingLevelRaw: real`, `alignment: real`, `contributors: json` (ranked decomposition).
 
-**Goal lifecycle:** the draft model's `goals.active: boolean` is superseded by `goals.status: enum(draft|proposed|active|completed|abandoned)`, owned by `lifeOS-planning-sessions.md`. **Only goals with `status = active` are scored** — `draft`, `proposed`, `completed`, and `abandoned` goals are excluded from every stage. An `abandoned` goal drops out from its abandonment date forward and is never retro-penalised.
+**Goal lifecycle:** ✅ `goals.active: boolean` has been migrated to `goals.status: enum(draft|proposed|active|completed|abandoned)`, owned by `lifeOS-planning-sessions.md`. **Only goals with `status = active` are scored** — `draft`, `proposed`, `completed`, and `abandoned` goals are excluded from every stage. An `abandoned` goal drops out from its abandonment date forward and is never retro-penalised.
 
 Everything else in the draft model stands.
 

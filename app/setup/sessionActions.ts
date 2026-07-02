@@ -6,18 +6,8 @@ import { db } from '@/lib/db';
 import { user, vectors, anchors, goals, sessions } from '@/lib/db/schema';
 import { VECTORS } from '@/lib/vectors';
 import { chatDuringSetup, type ChatMessage } from '@/lib/llm/setupChat';
+import { quarterBounds } from '@/lib/dates';
 import type { SetupData } from './types';
-
-function quarterBounds(quarter: string) {
-  const [yearStr, qStr] = quarter.split('-Q');
-  const year = parseInt(yearStr);
-  const q    = parseInt(qStr);
-  const sm   = (q - 1) * 3;
-  return {
-    startDate: new Date(year, sm, 1).toISOString().split('T')[0],
-    endDate:   new Date(year, sm + 3, 0).toISOString().split('T')[0],
-  };
-}
 
 // ── 1. Bootstrap: write user + vectors, open session ─────────────────────────
 
@@ -102,7 +92,9 @@ export async function setupSessionTurn(
   history:   ChatMessage[],
   sessionId: string,
   quarter:   string,
-  selectedVectors: { id: string; label: string }[]
+  selectedVectors: { id: string; label: string }[],
+  priorSkippedGoalVectors: string[] = [],
+  priorRemovedVectors: string[] = []
 ): Promise<TurnResult> {
   const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
   if (!session) return { reply: '', phase: 'orient', anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: 'Session not found.' };
@@ -118,8 +110,8 @@ export async function setupSessionTurn(
     .all();
 
   let finalPhase = session.phase;
-  const skippedGoalVectors: string[] = [];
-  const removedVectors: string[] = [];
+  const skippedGoalVectors: string[] = [...priorSkippedGoalVectors];
+  const removedVectors: string[] = [...priorRemovedVectors];
 
   let reply: string;
   try {
@@ -128,12 +120,15 @@ export async function setupSessionTurn(
       {
         userName:   u?.name     ?? 'You',
         timezone:   u?.timezone ?? 'UTC',
-        lennaTone:  (u?.lennaTone ?? 'warm') as 'warm' | 'neutral' | 'direct',
-        phase:      session.phase,
+        lennaTone:     (u?.lennaTone    ?? 'warm')  as 'warm' | 'neutral' | 'direct',
+        lennaAutonomy: (u?.lennaAutonomy ?? 'draft') as 'suggest' | 'draft' | 'act',
+        phase:         session.phase,
         quarter,
-        vectors:    selectedVectors,
+        vectors:    selectedVectors.filter(v => !removedVectors.includes(v.id)),
         anchors:    currentAnchors.map(a => ({ vectorId: a.vectorId, description: a.description })),
         draftGoals: currentDraftGoals.map(g => ({ vectorId: g.vectorId, description: g.description, type: g.type })),
+        skippedGoalVectors,
+        removedVectors,
       },
       history,
       async (toolName, input) => {
@@ -168,7 +163,7 @@ export async function setupSessionTurn(
           const validTypes = ['milestone', 'metric', 'consistency'];
           if (!validTypes.includes(type)) return `Invalid type "${type}".`;
 
-          const { startDate, endDate } = quarterBounds(quarter);
+          const { start: startDate, end: endDate } = quarterBounds(quarter);
 
           // Upsert — replace if Lenna revises the goal for this vector
           const existingGoal = db.select().from(goals)

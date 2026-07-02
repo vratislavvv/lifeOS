@@ -7,6 +7,7 @@ import { startSetupSession, setupSessionTurn, commitSetupSession } from './sessi
 import type { ChatMessage } from '@/lib/llm/setupChat';
 import type { SetupData } from './types';
 import { LennaText } from '@/lib/renderMarkdown';
+import { goalSubline } from '@/lib/ui/goalSubline';
 import styles from './session.module.css';
 
 type Anchor = {
@@ -31,16 +32,6 @@ type DraftGoal = {
 type Props = {
   data: SetupData;
 };
-
-function goalSubline(g: DraftGoal): string {
-  if (g.type === 'metric' && g.startValue != null && g.targetValue != null) {
-    return `${g.startValue} → ${g.targetValue}`;
-  }
-  if (g.type === 'consistency' && g.cadencePerWeek != null) {
-    return `${g.cadencePerWeek}×/week`;
-  }
-  return g.paceShape;
-}
 
 export default function SetupSession({ data }: Props) {
   const firstName      = data.name.trim().split(' ')[0] || 'you';
@@ -72,7 +63,7 @@ export default function SetupSession({ data }: Props) {
       setQuarter(q);
 
       // Lenna opens the conversation
-      const result = await setupSessionTurn('__start__', [], sid, q, selectedVectors);
+      const result = await setupSessionTurn('__start__', [], sid, q, selectedVectors, [], []);
       if (result.reply) setMessages([{ role: 'lenna', text: result.reply }]);
       if (result.phase) setPhase(result.phase);
     });
@@ -91,7 +82,7 @@ export default function SetupSession({ data }: Props) {
     setInputText('');
 
     startTransition(async () => {
-      const result = await setupSessionTurn(text, prevMessages, sessionId, quarter, selectedVectors);
+      const result = await setupSessionTurn(text, prevMessages, sessionId, quarter, selectedVectors, skippedGoalVectors, removedVectors);
       if (result.error) {
         setInputError(result.error);
         setMessages(m => m.slice(0, -1));
@@ -114,7 +105,7 @@ export default function SetupSession({ data }: Props) {
     await commitSetupSession(sessionId);
   }
 
-  const canCommit = phase === 'commit' && draftGoals.length > 0 && !committing;
+  const canCommit = phase === 'commit' && !committing;
 
   return (
     <div className={styles.session}>

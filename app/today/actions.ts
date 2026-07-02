@@ -5,14 +5,16 @@ import { eq } from 'drizzle-orm';
 import { db, DEFAULT_GROUP_ID } from '@/lib/db';
 import { inputs, scores, vectors, goals, tasks, taskGroups, user as userTable } from '@/lib/db/schema';
 import { asc } from 'drizzle-orm';
-import { extractInput } from '@/lib/llm/extract';
 import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
-import { computeScore, quarterPaceNow } from '@/lib/scoring/compute';
+import { recalculate } from '@/lib/scoring/recalculate';
+import { phraseScore } from '@/lib/llm/phrase';
+import { MAX_INPUT_DELTA } from '@/lib/scoring/constants';
 
 export async function sendToLenna(
-  rawText: string,
-  history: ChatMessage[]
-): Promise<{ reply?: string; error?: string }> {
+  rawText:    string,
+  history:    ChatMessage[],
+  lastLogged?: { vectorId: string; summary: string; progressDelta: number },
+): Promise<{ reply?: string; error?: string; justLogged?: { vectorId: string; summary: string; progressDelta: number } }> {
   const text = rawText.trim();
   if (!text) return {};
 
@@ -26,56 +28,16 @@ export async function sendToLenna(
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
   const todayTasks = db.select().from(tasks).where(eq(tasks.date, today)).orderBy(asc(tasks.createdAt)).all();
 
-  let extracted: Awaited<ReturnType<typeof extractInput>>;
-  try {
-    extracted = await extractInput(text, vecs, quarterGoals);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    return { error: `Extraction failed: ${msg}` };
-  }
-
+  // Load current score for context (score updates happen via log_progress tool only)
   let operatingLevel: number | null = null;
   let vectorBreakdown: Record<string, number> = {};
-  let justLogged: { vectorId: string; summary: string; progressDelta: number } | null = null;
+  // Seed justLogged from the caller (previous turn) so Lenna's system prompt has it
+  let justLogged: { vectorId: string; summary: string; progressDelta: number } | null = lastLogged ?? null;
 
-  if (extracted.isProgressLog) {
-    const validVectorIds = new Set(vecs.map(v => v.id));
-    const validGoalIds = new Set(quarterGoals.map(g => g.id));
-    const vectorId = validVectorIds.has(extracted.vectorId) ? extracted.vectorId : (vecs[0]?.id ?? 'craft');
-    const goalId = extracted.goalId && validGoalIds.has(extracted.goalId) ? extracted.goalId : null;
-
-    db.insert(inputs).values({
-      date: today,
-      type: 'manual',
-      vectorId,
-      goalId,
-      rawText: text,
-      progressDelta: extracted.progressDelta,
-      confidence: extracted.confidence,
-      metadata: { summary: extracted.summary },
-    }).run();
-
-    const allInputs = db.select().from(inputs).all();
-    const pace = quarterPaceNow();
-    const computed = computeScore(vecs, allInputs, pace);
-    operatingLevel = computed.operatingLevel;
-    vectorBreakdown = computed.vectorBreakdown;
-
-    db.delete(scores).where(eq(scores.date, today)).run();
-    db.insert(scores).values({
-      date: today,
-      operatingLevel,
-      vectorBreakdown,
-      explanation: `${allInputs.length} input(s) · latest: ${extracted.summary}`,
-    }).run();
-
-    justLogged = { vectorId, summary: extracted.summary, progressDelta: extracted.progressDelta };
-  } else {
-    const latest = db.select().from(scores).where(eq(scores.date, today)).get();
-    if (latest) {
-      operatingLevel = latest.operatingLevel;
-      vectorBreakdown = latest.vectorBreakdown as Record<string, number>;
-    }
+  const latestScore = db.select().from(scores).where(eq(scores.date, today)).get();
+  if (latestScore) {
+    operatingLevel = latestScore.operatingLevel;
+    vectorBreakdown = latestScore.vectorBreakdown as Record<string, number>;
   }
 
   let reply: string;
@@ -89,7 +51,13 @@ export async function sendToLenna(
         operatingLevel,
         vectorBreakdown,
         vectors: vecs.map(v => ({ id: v.id, label: v.label })),
-        goals: quarterGoals.map(g => ({ vectorId: g.vectorId ?? '', description: g.description ?? '' })),
+        goals: quarterGoals.map(g => ({
+          id: g.id,
+          vectorId: g.vectorId ?? '',
+          description: g.description ?? '',
+          type: g.type ?? 'milestone',
+          cadencePerWeek: g.cadencePerWeek,
+        })),
         groups: groups.map(g => ({ id: g.id, name: g.name })),
         tasks: todayTasks.map(t => ({ id: t.id, title: t.title, done: t.done })),
         justLogged,
@@ -137,40 +105,81 @@ export async function sendToLenna(
         }
 
         if (toolName === 'log_progress') {
-          const { vectorId, description, progressDelta } = input as {
-            vectorId: string;
-            description: string;
-            progressDelta: number;
+          const { vectorId, goalId: rawGoalId, description, kind, progressDelta, value, occurredCount } = input as {
+            vectorId:      string;
+            goalId?:       string;
+            description:   string;
+            kind:          'milestone_delta' | 'metric_value' | 'consistency_occurrence';
+            progressDelta?: number;
+            value?:         number;
+            occurredCount?: number;
           };
+
           const validVec = vecs.find(v => v.id === vectorId);
           if (!validVec) return 'Invalid vector ID.';
 
+          const matchedGoal = rawGoalId
+            ? quarterGoals.find(g => g.id === rawGoalId)
+            : quarterGoals.find(g => g.vectorId === vectorId && g.status === 'active');
+
+          // Clamp milestone delta at MAX_INPUT_DELTA on write
+          const safeDelta = kind === 'milestone_delta' && progressDelta != null
+            ? Math.sign(progressDelta) * Math.min(Math.abs(progressDelta), MAX_INPUT_DELTA)
+            : null;
+
           db.insert(inputs).values({
-            date: today,
-            type: 'manual',
+            date:          today,
+            type:          'manual',
             vectorId,
-            goalId: null,
-            rawText: description,
-            progressDelta: Math.min(Math.max(progressDelta, 0), 1),
-            confidence: 0.9,
-            metadata: { summary: description },
+            goalId:        matchedGoal?.id ?? null,
+            rawText:       description,
+            kind,
+            progressDelta: safeDelta,
+            value:         kind === 'metric_value'           ? (value         ?? null) : null,
+            occurredCount: kind === 'consistency_occurrence' ? (occurredCount ?? 1)    : null,
+            confidence:    0.9,
+            metadata:      { summary: description },
           }).run();
 
-          const allInputs = db.select().from(inputs).all();
-          const pace = quarterPaceNow();
-          const computed = computeScore(vecs, allInputs, pace);
-          operatingLevel = computed.operatingLevel;
-          vectorBreakdown = computed.vectorBreakdown;
+          // Recalculate full scoring engine
+          const result = recalculate(today);
+          if (!('calibrating' in result)) {
+            operatingLevel  = result.operatingLevel;
+            vectorBreakdown = result.vectorBreakdown;
 
-          db.delete(scores).where(eq(scores.date, today)).run();
-          db.insert(scores).values({
-            date: today,
-            operatingLevel: computed.operatingLevel,
-            vectorBreakdown: computed.vectorBreakdown,
-            explanation: `${allInputs.length} input(s) · latest: ${description}`,
-          }).run();
+            // Async: get one-sentence explanation (fire-and-forget into DB)
+            phraseScore(result.operatingLevel, result.contributors).then(explanation => {
+              db.delete(scores).where(eq(scores.date, today)).run();
+              db.insert(scores).values({
+                date:              today,
+                operatingLevel:    result.operatingLevel,
+                operatingLevelRaw: result.operatingLevelRaw,
+                alignment:         result.alignment,
+                contributors:      result.contributors,
+                vectorBreakdown:   result.vectorBreakdown,
+                explanation,
+              }).run();
+            }).catch(() => {
+              // phrase failed — persist score without explanation
+              db.delete(scores).where(eq(scores.date, today)).run();
+              db.insert(scores).values({
+                date:              today,
+                operatingLevel:    result.operatingLevel,
+                operatingLevelRaw: result.operatingLevelRaw,
+                alignment:         result.alignment,
+                contributors:      result.contributors,
+                vectorBreakdown:   result.vectorBreakdown,
+              }).run();
+            });
+          }
 
-          return `Logged "${description}" under ${validVec.label} (+${Math.round(progressDelta * 100)}pp).`;
+          // Set justLogged so Lenna's system prompt on the NEXT message knows what was logged
+          justLogged = { vectorId, summary: description, progressDelta: safeDelta ?? 0 };
+
+          const logStr = kind === 'metric_value'           ? `value: ${value}`
+                       : kind === 'consistency_occurrence' ? '1 session logged'
+                       : `Δ${Math.round((safeDelta ?? 0) * 100)}pp`;
+          return `Logged "${description}" under ${validVec.label} (${logStr}). OL is now ${Math.round(operatingLevel ?? 0)}.`;
         }
 
         return 'Unknown tool.';
@@ -182,5 +191,5 @@ export async function sendToLenna(
   }
 
   revalidatePath('/today');
-  return { reply };
+  return { reply, justLogged: justLogged ?? undefined };
 }

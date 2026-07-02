@@ -10,7 +10,7 @@ type ChatContext = {
   operatingLevel: number | null;
   vectorBreakdown: Record<string, number>;
   vectors: { id: string; label: string }[];
-  goals: { vectorId: string; description: string }[];
+  goals: { id: string; vectorId: string; description: string; type: string; cadencePerWeek: number | null }[];
   groups: { id: string; name: string }[];
   tasks: { id: string; title: string; done: boolean }[];
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
@@ -59,15 +59,23 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'log_progress',
-    description: 'Log progress for a life vector on behalf of the user',
+    description: 'Log progress for a life vector. Use the kind that matches the goal type — the backend computes correct completion from the structured signal, not from progressDelta estimates.',
     input_schema: {
       type: 'object',
       properties: {
-        vectorId:      { type: 'string', description: 'Vector ID (craft/body/money/mind/social/rest)' },
-        description:   { type: 'string', description: 'What was done, 10 words max' },
-        progressDelta: { type: 'number', description: 'Progress 0–1. Training session ≈ 0.1, major milestone ≈ 0.4' },
+        vectorId:     { type: 'string', description: 'Vector ID' },
+        goalId:       { type: 'string', description: 'Goal ID — always provide when the activity matches a specific goal' },
+        description:  { type: 'string', description: 'What was done, 10 words max' },
+        kind: {
+          type: 'string',
+          enum: ['milestone_delta', 'metric_value', 'consistency_occurrence'],
+          description: 'milestone_delta: effort toward a milestone goal. metric_value: an observed numeric reading (e.g. savings balance). consistency_occurrence: one scheduled session completed.',
+        },
+        progressDelta: { type: 'number', description: 'For milestone_delta only: subjective progress −1..1. Minor effort ≈ 0.05, significant ≈ 0.2, major ≈ 0.3. Omit for other kinds.' },
+        value:         { type: 'number', description: 'For metric_value only: the actual observed number (e.g. 12400 for €12,400 savings).' },
+        occurredCount: { type: 'number', description: 'For consistency_occurrence only: number of sessions completed, usually 1.' },
       },
-      required: ['vectorId', 'description', 'progressDelta'],
+      required: ['vectorId', 'description', 'kind'],
     },
   },
 ];
@@ -84,7 +92,15 @@ export async function chatWithLenna(
       ? (gap >= 0 ? `+${Math.round(gap * 100)}pp ahead` : `${Math.round(gap * 100)}pp behind`)
       : 'no data yet';
     const goal = context.goals.find(g => g.vectorId === v.id);
-    return `- ${v.label}: ${status}${goal ? ` | goal: "${goal.description}"` : ''}`;
+    let goalPart = '';
+    if (goal) {
+      goalPart = ` | goal[${goal.id}]: "${goal.description}" (${goal.type}`;
+      if (goal.type === 'consistency' && goal.cadencePerWeek != null) {
+        goalPart += `, ${goal.cadencePerWeek}×/week`;
+      }
+      goalPart += ')';
+    }
+    return `- ${v.label}: ${status}${goalPart}`;
   }).join('\n');
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');

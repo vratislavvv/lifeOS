@@ -8,11 +8,14 @@ type SetupContext = {
   userName: string;
   timezone: string;
   lennaTone: 'warm' | 'neutral' | 'direct';
+  lennaAutonomy: 'suggest' | 'draft' | 'act';
   phase: string;
   quarter: string;
   vectors: { id: string; label: string }[];
   anchors: { vectorId: string; description: string }[];
   draftGoals: { vectorId: string; description: string; type: string }[];
+  skippedGoalVectors: string[];
+  removedVectors: string[];
 };
 
 const TOOLS: Anthropic.Tool[] = [
@@ -86,6 +89,22 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+function goalDraftInstruction(autonomy: 'suggest' | 'draft' | 'act'): string {
+  if (autonomy === 'suggest') {
+    return `- Ask the user what they want to move for this vector: "What are you trying to do with [vector] this quarter?" Let them describe their intent first.
+- Ask a follow-up to nail down the type and numbers if needed: "Do you want a specific target metric, a weekly habit cadence, or a clear milestone to hit?"
+- Once you understand their intent, fill in the full spec yourself, then confirm: "So: 4 runs/week, consistency. That right?"
+- Adjust if they push back. Call propose_goal only after they confirm.`;
+  }
+  if (autonomy === 'act') {
+    return `- State the goal type and targets clearly, then immediately call propose_goal without waiting for confirmation: "Body: 4 runs/week, consistency. Locked in."
+- If the user pushes back afterward, call the appropriate correction tool.`;
+  }
+  // draft (default)
+  return `- Propose first, confirm after: "Body: 4 runs/week, consistency. Work for you?"
+- If the user wants changes, adjust and re-propose. Call propose_goal once confirmed.`;
+}
+
 export async function chatDuringSetup(
   message: string,
   context: SetupContext,
@@ -101,8 +120,11 @@ export async function chatDuringSetup(
 
   const anchoredVectors  = context.anchors.map(a => a.vectorId);
   const goaledVectors    = context.draftGoals.map(g => g.vectorId);
-  const pendingAnchors   = context.vectors.filter(v => !anchoredVectors.includes(v.id)).map(v => v.label);
-  const pendingGoals     = context.vectors.filter(v => !goaledVectors.includes(v.id)).map(v => v.label);
+  const activeVectors    = context.vectors.filter(v => !context.removedVectors.includes(v.id));
+  const pendingAnchors   = activeVectors.filter(v => !anchoredVectors.includes(v.id)).map(v => v.label);
+  const pendingGoals     = activeVectors
+    .filter(v => !goaledVectors.includes(v.id) && !context.skippedGoalVectors.includes(v.id))
+    .map(v => v.label);
 
   const toneGuide =
     context.lennaTone === 'warm'    ? 'Warm tone — encourage, soften edges, be supportive.'
@@ -121,6 +143,8 @@ ${vectorList}
 Current phase: ${context.phase.toUpperCase()}
 Anchors confirmed: ${anchoredVectors.length > 0 ? anchoredVectors.join(', ') : 'none'}
 Goals drafted: ${goaledVectors.length > 0 ? goaledVectors.join(', ') : 'none'}
+${context.skippedGoalVectors.length > 0 ? `Goals skipped this quarter: ${context.skippedGoalVectors.join(', ')}` : ''}
+${context.removedVectors.length > 0 ? `Vectors removed from profile: ${context.removedVectors.join(', ')}` : ''}
 ${context.phase === 'orient' ? `Still need anchors for: ${pendingAnchors.join(', ') || 'none — ready to advance'}` : ''}
 ${context.phase === 'draft'  ? `Still need goals for: ${pendingGoals.join(', ')   || 'none — ready to advance'}` : ''}
 
@@ -133,18 +157,17 @@ ORIENT — Establish a long-horizon anchor for each vector.
 - Propose before asking for confirmation: "I'd frame your Body anchor as: 'Run 50+ km/week consistently by 2031.' Does that land?"
 - Once confirmed, call propose_anchor.
 - If the user doesn't want a vector at all ("I don't care about Social"), call remove_vector. Only for genuine disinterest — not just "not this quarter."
-- After every remaining vector has a confirmed anchor or is removed, call advance_phase({ phase: "draft" }).
+- After every remaining vector has a confirmed anchor or is removed, you MUST call advance_phase({ phase: "draft" }) immediately. The "Still need anchors for:" line above tells you what's left — when it says "none", call the tool NOW.
 - One vector at a time. Don't batch them.
 
 DRAFT — Propose this quarter's goal for each vector.
-- Go one vector at a time. Propose a concrete goal with type and targets.
+- Go one vector at a time. Fill in type and targets completely:
   - milestone: clear description of what done looks like.
   - metric: startValue → targetValue (numbers, not vibes). E.g. "€3,200 → €5,000 MRR".
   - consistency: cadencePerWeek. E.g. "4 runs/week".
-- Propose first, confirm after: "Body: 4 runs/week, consistency. Work for you?"
-- If the user wants changes, adjust and re-propose. Call propose_goal once confirmed.
+${goalDraftInstruction(context.lennaAutonomy)}
 - If the user doesn't want a goal for a vector this quarter ("nothing to move on Craft right now"), call skip_goal. The vector stays in their profile but sits out this quarter — that's fine.
-- After every remaining vector has a confirmed goal or is skipped, call advance_phase({ phase: "commit" }).
+- After every remaining vector has a confirmed goal or is skipped, you MUST call advance_phase({ phase: "commit" }) immediately before saying anything else. The "Still need goals for:" line above tells you exactly what is left — when it says "none", call the tool NOW.
 
 COMMIT — Session is complete.
 - Briefly confirm the full set in plain language.

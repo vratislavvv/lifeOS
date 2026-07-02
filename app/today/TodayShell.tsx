@@ -61,6 +61,7 @@ export default function TodayShell({ user, vectors, goals, score, groups, todayT
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [lastLogged, setLastLogged] = useState<{ vectorId: string; summary: string; progressDelta: number } | null>(null);
   const [lennaOpen, setLennaOpen] = useState(true);
   const [lennaWidth, setLennaWidth] = useState(260);
   const [pending, startTransition] = useTransition();
@@ -121,12 +122,13 @@ export default function TodayShell({ user, vectors, goals, score, groups, todayT
     setInputText('');
 
     startTransition(async () => {
-      const result = await sendToLenna(text, previousMessages);
+      const result = await sendToLenna(text, previousMessages, lastLogged ?? undefined);
       if (result.error) {
         setInputError(result.error);
-        setMessages(prev => prev.slice(0, -1)); // remove optimistic user message
+        setMessages(prev => prev.slice(0, -1));
       } else if (result.reply) {
         setMessages(prev => [...prev, { role: 'lenna', text: result.reply! }]);
+        if (result.justLogged) setLastLogged(result.justLogged);
       }
     });
   }

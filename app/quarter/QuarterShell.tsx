@@ -24,6 +24,8 @@ type Props = {
   quarterStart: string;
   quarterEnd: string;
   daysLeft: number;
+  reviewPending?: boolean;
+  closedQuarter?: string;
 };
 
 // ── Sparkline ────────────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ function GoalRow({ g, tau }: { g: GoalCard; tau: number }) {
 export default function QuarterShell({
   user, vectors, goalCards, scoreTrend, latestScore,
   quarter, tau, quarterStart, quarterEnd, daysLeft,
+  reviewPending, closedQuarter,
 }: Props) {
   const [qYear, qNum]  = quarter.split('-Q');
   const quarterLabel   = `Q${qNum} ${qYear}`;
@@ -101,6 +104,7 @@ export default function QuarterShell({
   const [inputText,  setInputText]  = useState('');
   const [messages,   setMessages]   = useState<ChatMessage[]>([]);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [lastLogged, setLastLogged] = useState<{ vectorId: string; summary: string; progressDelta: number } | null>(null);
   const [lennaOpen,  setLennaOpen]  = useState(false);
   const [lennaWidth, setLennaWidth] = useState(260);
   const [pending,    startTransition] = useTransition();
@@ -133,9 +137,12 @@ export default function QuarterShell({
     setMessages(m => [...m, { role: 'user', text }]);
     setInputText('');
     startTransition(async () => {
-      const res = await sendToLenna(text, prev);
+      const res = await sendToLenna(text, prev, lastLogged ?? undefined);
       if (res.error) { setInputError(res.error); setMessages(m => m.slice(0, -1)); }
-      else if (res.reply) setMessages(m => [...m, { role: 'lenna', text: res.reply! }]);
+      else if (res.reply) {
+        setMessages(m => [...m, { role: 'lenna', text: res.reply! }]);
+        if (res.justLogged) setLastLogged(res.justLogged);
+      }
     });
   }
 
@@ -200,6 +207,24 @@ export default function QuarterShell({
             <div className={styles.scoreLabel}>operating level</div>
           </div>
         </div>
+
+        {/* Review due banner */}
+        {reviewPending && closedQuarter && (() => {
+          const [cqYear, cqNum] = closedQuarter.split('-Q');
+          return (
+            <Link href="/quarter/review" className={styles.reviewBanner}>
+              <span className={styles.reviewBannerText}>
+                Q{cqNum} {cqYear} review is due
+              </span>
+              <span className={styles.reviewBannerCta}>Start review →</span>
+            </Link>
+          );
+        })()}
+
+        {/* On-demand replan link */}
+        <Link href="/quarter/replan" className={styles.replanLink}>
+          Revise this quarter →
+        </Link>
 
         {/* Row 1: τ bar + OL sparkline */}
         <div className={styles.row}>
