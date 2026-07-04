@@ -147,30 +147,21 @@ export async function sendToLenna(
             operatingLevel  = result.operatingLevel;
             vectorBreakdown = result.vectorBreakdown;
 
-            // Async: get one-sentence explanation (fire-and-forget into DB)
+            // Write score immediately so revalidatePath sees it
+            db.delete(scores).where(eq(scores.date, today)).run();
+            db.insert(scores).values({
+              date:              today,
+              operatingLevel:    result.operatingLevel,
+              operatingLevelRaw: result.operatingLevelRaw,
+              alignment:         result.alignment,
+              contributors:      result.contributors,
+              vectorBreakdown:   result.vectorBreakdown,
+            }).run();
+
+            // Async: backfill one-sentence explanation
             phraseScore(result.operatingLevel, result.contributors).then(explanation => {
-              db.delete(scores).where(eq(scores.date, today)).run();
-              db.insert(scores).values({
-                date:              today,
-                operatingLevel:    result.operatingLevel,
-                operatingLevelRaw: result.operatingLevelRaw,
-                alignment:         result.alignment,
-                contributors:      result.contributors,
-                vectorBreakdown:   result.vectorBreakdown,
-                explanation,
-              }).run();
-            }).catch(() => {
-              // phrase failed — persist score without explanation
-              db.delete(scores).where(eq(scores.date, today)).run();
-              db.insert(scores).values({
-                date:              today,
-                operatingLevel:    result.operatingLevel,
-                operatingLevelRaw: result.operatingLevelRaw,
-                alignment:         result.alignment,
-                contributors:      result.contributors,
-                vectorBreakdown:   result.vectorBreakdown,
-              }).run();
-            });
+              db.update(scores).set({ explanation }).where(eq(scores.date, today)).run();
+            }).catch(() => { /* ignore */ });
           }
 
           // Set justLogged so Lenna's system prompt on the NEXT message knows what was logged
@@ -191,5 +182,6 @@ export async function sendToLenna(
   }
 
   revalidatePath('/today');
+  revalidatePath('/quarter');
   return { reply, justLogged: justLogged ?? undefined };
 }

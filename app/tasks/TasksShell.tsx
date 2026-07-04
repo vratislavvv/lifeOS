@@ -1,0 +1,247 @@
+'use client';
+
+import { useState, useTransition, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { LennaText } from '@/lib/renderMarkdown';
+import { sendToLenna } from '../today/actions';
+import { toggleTask, deleteTask } from '../today/taskActions';
+import type { ChatMessage } from '@/lib/llm/chat';
+import type { vectors, tasks, taskGroups, user } from '@/lib/db/schema';
+import styles from './tasks.module.css';
+
+type User      = typeof user.$inferSelect;
+type Vector    = typeof vectors.$inferSelect;
+type Task      = typeof tasks.$inferSelect;
+type TaskGroup = typeof taskGroups.$inferSelect;
+
+type Props = {
+  user:    User;
+  vectors: Vector[];
+  groups:  TaskGroup[];
+  tasks:   Task[];
+  today:   string;
+};
+
+const TODAY_STR = new Date().toISOString().split('T')[0];
+
+function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean } | null {
+  if (!dueDate) return null;
+  const overdue = dueDate < TODAY_STR;
+  if (overdue) return { text: 'overdue', overdue: true };
+  if (dueDate === TODAY_STR) return { text: 'due today', overdue: false };
+  const d = new Date(dueDate + 'T00:00:00');
+  return { text: `due ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, overdue: false };
+}
+
+function priorityClass(important: boolean, urgent: boolean, s: Record<string, string>) {
+  if (important && urgent)  return s.prioHighHigh;
+  if (important && !urgent) return s.prioHighLow;
+  if (!important && urgent) return s.prioLowHigh;
+  return '';
+}
+
+export default function TasksShell({ user, vectors, groups, tasks: allTasks, today }: Props) {
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [inputText, setInputText]             = useState('');
+  const [messages, setMessages]               = useState<ChatMessage[]>([]);
+  const [inputError, setInputError]           = useState<string | null>(null);
+  const [pending, startTransition]            = useTransition();
+  const [taskPending, startTaskTransition]    = useTransition();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const firstName  = user.name.trim().split(' ')[0] || 'you';
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
+
+  function handleSubmit() {
+    const text = inputText.trim();
+    if (!text || pending) return;
+    setInputError(null);
+    const prev = [...messages];
+    setMessages(m => [...m, { role: 'user', text }]);
+    setInputText('');
+    startTransition(async () => {
+      const result = await sendToLenna(text, prev);
+      if (result.error) { setInputError(result.error); setMessages(m => m.slice(0, -1)); }
+      else if (result.reply) setMessages(m => [...m, { role: 'lenna', text: result.reply! }]);
+    });
+  }
+
+  void firstName;
+
+  const displayGroups = selectedGroupId
+    ? groups.filter(g => g.id === selectedGroupId)
+    : groups;
+
+  return (
+    <div className={styles.shell}>
+
+      {/* ── Sidebar ── */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarBody}>
+          <div className={styles.sidebarLogo}>lifeOS</div>
+          <div className={styles.navTree}>
+            <div className={styles.navItem}>
+              <Link href="/today" className={styles.navLink}>Today</Link>
+            </div>
+            <div className={styles.navItem}>
+              <Link href="/quarter" className={styles.navLink}>Quarter</Link>
+            </div>
+            <div className={styles.navItem}>
+              <Link href="/tasks" className={`${styles.navLink} ${styles.navLinkActive}`}>Tasks</Link>
+            </div>
+          </div>
+        </div>
+        <div className={styles.sidebarFooter}>
+          <div className={styles.sidebarFooterLink}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.75, marginRight: 7 }}>
+              <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+              <circle cx="9" cy="8" r="2.3" fill="var(--bg)" /><circle cx="15" cy="16" r="2.3" fill="var(--bg)" />
+            </svg>
+            Settings
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Center: task groups ── */}
+      <div className={styles.center}>
+        <div className={styles.centerHeader}>
+          <div className={styles.centerTitle}>Tasks</div>
+          <div className={styles.groupTabs}>
+            <button
+              className={`${styles.groupTab} ${selectedGroupId === null ? styles.groupTabActive : ''}`}
+              onClick={() => setSelectedGroupId(null)}
+            >
+              All
+            </button>
+            {groups.map(g => (
+              <button
+                key={g.id}
+                className={`${styles.groupTab} ${selectedGroupId === g.id ? styles.groupTabActive : ''}`}
+                onClick={() => setSelectedGroupId(g.id)}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.centerBody}>
+          {displayGroups.map(group => {
+            const groupTasks = allTasks
+              .filter(t => t.groupId === group.id)
+              .sort((a, b) => {
+                const p = (t: Task) => t.important && t.urgent ? 0 : t.important ? 1 : t.urgent ? 2 : 3;
+                return p(a) - p(b);
+              });
+            return (
+              <div key={group.id} className={styles.group}>
+                <div className={styles.groupHeader}>
+                  <span className={styles.groupName}>{group.name}</span>
+                  <span className={styles.groupCount}>{groupTasks.length}</span>
+                </div>
+                {groupTasks.length === 0 ? (
+                  <div className={styles.groupEmpty}>No tasks — ask Lenna to add one.</div>
+                ) : (
+                  groupTasks.map(task => {
+                    const due = dueDateLabel(task.dueDate);
+                    const isToday = task.date === today;
+                    return (
+                      <div
+                        key={task.id}
+                        className={[
+                          styles.taskRow,
+                          priorityClass(task.important, task.urgent, styles as Record<string, string>),
+                          taskPending ? styles.taskPending : '',
+                        ].join(' ')}
+                      >
+                        <button
+                          className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
+                          onClick={() => startTaskTransition(() => toggleTask(task.id))}
+                          title={task.done ? 'Mark undone' : 'Mark done'}
+                        />
+                        <div className={styles.taskBody}>
+                          <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
+                            {task.title}
+                          </span>
+                          <div className={styles.taskMeta}>
+                            {isToday && <span className={styles.taskDateBadge}>today</span>}
+                            {due && (
+                              <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
+                                {due.text}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          className={styles.taskDelete}
+                          onClick={() => startTaskTransition(() => deleteTask(task.id))}
+                          title="Delete"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })}
+
+          {displayGroups.length === 0 && (
+            <div className={styles.emptyState}>No groups yet — ask Lenna to create one.</div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Lenna rail ── */}
+      <aside className={styles.rail}>
+        <div className={styles.railHeader}>
+          <span className={styles.railAvatar}>L</span>
+          <span className={styles.railName}>Lenna</span>
+        </div>
+
+        <div className={styles.railBody}>
+          {messages.length === 0 && (
+            <div className={styles.railMsg}>
+              <div className={styles.railMsgText}>
+                What do you want to work on? I can add tasks, create groups, or mark things done.
+              </div>
+            </div>
+          )}
+          {messages.map((m, i) =>
+            m.role === 'user' ? (
+              <div key={i} className={styles.railMsgUser}>{m.text}</div>
+            ) : (
+              <div key={i} className={styles.railMsg}>
+                <LennaText text={m.text} className={styles.railMsgText} />
+              </div>
+            )
+          )}
+          {pending && (
+            <div className={styles.railMsg}>
+              <div className={styles.railMsgPending}>…</div>
+            </div>
+          )}
+          {inputError && <div className={styles.railError}>{inputError}</div>}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className={styles.railCompose}>
+          <textarea
+            className={styles.railInput}
+            placeholder="Ask Lenna…"
+            rows={2}
+            value={inputText}
+            disabled={pending}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+          />
+          {inputText.trim() && !pending && (
+            <div className={styles.railInputHint}>↵ send · shift+↵ newline</div>
+          )}
+        </div>
+      </aside>
+
+    </div>
+  );
+}

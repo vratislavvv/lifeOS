@@ -129,6 +129,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  position: relative;
 }
 .contentHeader {
   display: flex;
@@ -159,6 +160,7 @@
   padding: 13px 15px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 .islandSunk { background: var(--surface-sunk); border: none; }
 .islandLabel {
@@ -825,3 +827,47 @@
   white-space: nowrap;
 }
 .lennaStrip:hover .lennaStripLabel { color: var(--ink-soft); }
+
+/* === Island fullscreen button === */
+.islandFullscreen {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.island:hover .islandFullscreen { opacity: 1; }
+.islandFullscreen:hover { color: var(--ink); background: var(--surface-sunk); }
+
+/* === Fullscreen island overlay === */
+.fullscreenIsland {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 10;
+}
+.fullscreenClose {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.1s, background 0.1s;
+}
+.fullscreenClose:hover { color: var(--ink); background: var(--surface-sunk); }

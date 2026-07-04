@@ -62,6 +62,7 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
   const [lastLogged, setLastLogged] = useState<{ vectorId: string; summary: string; progressDelta: number } | null>(null);
   const [lennaOpen, setLennaOpen] = useState(true);
   const [lennaWidth, setLennaWidth] = useState(260);
+  const [fullscreen, setFullscreen] = useState<'clock' | 'focus' | null>(null);
   const [pending, startTransition] = useTransition();
   const [taskPending, startTaskTransition] = useTransition();
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -140,28 +141,13 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <div className={`${styles.navLink} ${styles.navLinkActive}`}>Today</div>
+              <Link href="/today" className={`${styles.navLink} ${styles.navLinkActive}`}>Today</Link>
             </div>
             <div className={styles.navItem}>
               <Link href="/quarter" className={styles.navLink}>Quarter</Link>
             </div>
             <div className={styles.navItem}>
-              <div className={styles.navLink}>Focus</div>
-            </div>
-            <div className={styles.navItem}>
-              <div className={styles.navLink}>
-                <span className={styles.navToggle}>▼</span>Stats
-              </div>
-            </div>
-            <div className={styles.navChildren}>
-              {vectors.map(v => (
-                <div key={v.id} className={styles.navChild}>
-                  <div className={styles.navLink}>
-                    <span className={styles.vecDot} style={{ background: v.color }} />
-                    {v.label}
-                  </div>
-                </div>
-              ))}
+              <Link href="/tasks" className={styles.navLink}>Tasks</Link>
             </div>
           </div>
         </div>
@@ -193,124 +179,144 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
           </div>
         </div>
 
-        {/* Row 1: Today island + Clock */}
-        <div className={styles.row}>
-          <div className={`${styles.island} ${styles.todayIsland}`}>
-            <div className={styles.islandLabel}>Today</div>
-            {todayTasks.length === 0 ? (
-              <div className={styles.emptyState}>No tasks yet — ask Lenna to add one.</div>
-            ) : (
-              <div className={styles.taskList}>
-                {groups
-                  .filter(g => todayTasks.some(t => t.groupId === g.id))
-                  .map(group => {
-                    const groupTasks = todayTasks
-                      .filter(t => t.groupId === group.id)
-                      .sort((a, b) => {
-                        const priority = (t: Task) =>
-                          t.important && t.urgent ? 0 :
-                          t.important ? 1 :
-                          t.urgent ? 2 : 3;
-                        return priority(a) - priority(b);
-                      });
-                    return (
-                      <div key={group.id} className={styles.taskGroup}>
-                        <div className={styles.taskGroupHeader}>{group.name}</div>
-                        {groupTasks.map(task => {
-                          const due = dueDateLabel(task.dueDate);
-                          return (
-                            <div
-                              key={task.id}
-                              className={[
-                                styles.taskRow,
-                                priorityClass(task.important, task.urgent),
-                                taskPending ? styles.taskPending : '',
-                              ].join(' ')}
-                            >
-                              <button
-                                className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
-                                onClick={() => startTaskTransition(() => toggleTask(task.id))}
-                                title={task.done ? 'Mark undone' : 'Mark done'}
-                              />
-                              <div className={styles.taskBody}>
-                                <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
-                                  {task.title}
-                                </span>
-                                {due && (
-                                  <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
-                                    {due.text}
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                className={styles.taskDelete}
-                                onClick={() => startTaskTransition(() => deleteTask(task.id))}
-                                title="Delete"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })
-                }
-              </div>
-            )}
-          </div>
-          <div className={`${styles.island} ${styles.islandSunk} ${styles.clockIsland}`}>
+        {/* Fullscreen island overlay */}
+        {fullscreen === 'clock' && (
+          <div className={styles.fullscreenIsland}>
+            <button className={styles.fullscreenClose} onClick={() => setFullscreen(null)}>✕</button>
             <Clock timeFormat={user.timeFormat} timezone={user.timezone} />
           </div>
-        </div>
-
-        {/* Row 2: Quarter island + Focus */}
-        <div className={styles.row}>
-          <div className={`${styles.island} ${styles.quarterIsland}`}>
-            <div className={styles.islandLabel}>
-              Quarter · {quarterLabel}
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--attention)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em', marginLeft: 8 }}>PROTOTYPE</span>
-            </div>
-            {vectors.map(v => {
-              const paceGap = breakdown[v.id] ?? null;
-              const progress = paceGap !== null
-                ? Math.min(Math.max(paceGap + quarterPace, 0), 1)
-                : null;
-              const ahead = paceGap !== null && paceGap >= 0;
-              const deltaLabel = paceGap !== null
-                ? `${ahead ? '+' : ''}${Math.round(paceGap * 100)}pp`
-                : '—';
-              return (
-                <div key={v.id} className={styles.vectorRow}>
-                  <div className={styles.vdot} style={{ background: v.color }} />
-                  <span className={styles.vlabel}>{v.label}</span>
-                  <div className={styles.vtrack}>
-                    <div className={styles.vtrackBg} />
-                    <div className={styles.vpace} style={{ left: `${quarterPace * 100}%` }} />
-                    {progress !== null && (
-                      <div
-                        className={styles.vnow}
-                        style={{ left: `${progress * 100}%`, background: v.color }}
-                      />
-                    )}
-                  </div>
-                  <span
-                    className={styles.vdelta}
-                    style={{ color: paceGap !== null ? (ahead ? 'var(--positive)' : 'var(--attention)') : undefined }}
-                  >
-                    {deltaLabel}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className={`${styles.island} ${styles.islandSunk} ${styles.focusIsland}`}>
+        )}
+        {fullscreen === 'focus' && (
+          <div className={styles.fullscreenIsland}>
+            <button className={styles.fullscreenClose} onClick={() => setFullscreen(null)}>✕</button>
             <FocusTimer />
           </div>
-        </div>
+        )}
 
-        {/* Calendar */}
-        <CalSection weekStart={user.weekStart} />
+        {/* Normal grid — hidden when fullscreen */}
+        {!fullscreen && (
+          <>
+            {/* Row 1: Today island + Clock */}
+            <div className={styles.row}>
+              <div className={`${styles.island} ${styles.todayIsland}`}>
+                <div className={styles.islandLabel}>Today</div>
+                {todayTasks.length === 0 ? (
+                  <div className={styles.emptyState}>No tasks yet — ask Lenna to add one.</div>
+                ) : (
+                  <div className={styles.taskList}>
+                    {groups
+                      .filter(g => todayTasks.some(t => t.groupId === g.id))
+                      .map(group => {
+                        const groupTasks = todayTasks
+                          .filter(t => t.groupId === group.id)
+                          .sort((a, b) => {
+                            const priority = (t: Task) =>
+                              t.important && t.urgent ? 0 :
+                              t.important ? 1 :
+                              t.urgent ? 2 : 3;
+                            return priority(a) - priority(b);
+                          });
+                        return (
+                          <div key={group.id} className={styles.taskGroup}>
+                            <div className={styles.taskGroupHeader}>{group.name}</div>
+                            {groupTasks.map(task => {
+                              const due = dueDateLabel(task.dueDate);
+                              return (
+                                <div
+                                  key={task.id}
+                                  className={[
+                                    styles.taskRow,
+                                    priorityClass(task.important, task.urgent),
+                                    taskPending ? styles.taskPending : '',
+                                  ].join(' ')}
+                                >
+                                  <button
+                                    className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
+                                    onClick={() => startTaskTransition(() => toggleTask(task.id))}
+                                    title={task.done ? 'Mark undone' : 'Mark done'}
+                                  />
+                                  <div className={styles.taskBody}>
+                                    <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
+                                      {task.title}
+                                    </span>
+                                    {due && (
+                                      <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
+                                        {due.text}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    className={styles.taskDelete}
+                                    onClick={() => startTaskTransition(() => deleteTask(task.id))}
+                                    title="Delete"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                )}
+              </div>
+              <div className={`${styles.island} ${styles.islandSunk} ${styles.clockIsland}`}>
+                <button className={styles.islandFullscreen} onClick={() => setFullscreen('clock')} title="Fullscreen">⤢</button>
+                <Clock timeFormat={user.timeFormat} timezone={user.timezone} />
+              </div>
+            </div>
+
+            {/* Row 2: Quarter island + Focus */}
+            <div className={styles.row}>
+              <div className={`${styles.island} ${styles.quarterIsland}`}>
+                <div className={styles.islandLabel}>
+                  Quarter · {quarterLabel}
+                </div>
+                {vectors.map(v => {
+                  const paceGap = breakdown[v.id] ?? null;
+                  const progress = paceGap !== null
+                    ? Math.min(Math.max(paceGap + quarterPace, 0), 1)
+                    : null;
+                  const ahead = paceGap !== null && paceGap >= 0;
+                  const deltaLabel = paceGap !== null
+                    ? `${ahead ? '+' : ''}${Math.round(paceGap * 100)}pp`
+                    : '—';
+                  return (
+                    <div key={v.id} className={styles.vectorRow}>
+                      <div className={styles.vdot} style={{ background: v.color }} />
+                      <span className={styles.vlabel}>{v.label}</span>
+                      <div className={styles.vtrack}>
+                        <div className={styles.vtrackBg} />
+                        <div className={styles.vpace} style={{ left: `${quarterPace * 100}%` }} />
+                        {progress !== null && (
+                          <div
+                            className={styles.vnow}
+                            style={{ left: `${progress * 100}%`, background: v.color }}
+                          />
+                        )}
+                      </div>
+                      <span
+                        className={styles.vdelta}
+                        style={{ color: paceGap !== null ? (ahead ? 'var(--positive)' : 'var(--attention)') : undefined }}
+                      >
+                        {deltaLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className={`${styles.island} ${styles.islandSunk} ${styles.focusIsland}`}>
+                <button className={styles.islandFullscreen} onClick={() => setFullscreen('focus')} title="Fullscreen">⤢</button>
+                <FocusTimer />
+              </div>
+            </div>
+
+            {/* Calendar */}
+            <CalSection weekStart={user.weekStart} />
+          </>
+        )}
 
       </main>
 

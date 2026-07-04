@@ -266,28 +266,13 @@ export default function ReviewSession({
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <div className={styles.navLink}>Today</div>
+              <Link href="/today" className={styles.navLink}>Today</Link>
             </div>
             <div className={styles.navItem}>
-              <div className={`${styles.navLink} ${styles.navLinkActive}`}>Quarter</div>
+              <Link href="/quarter" className={`${styles.navLink} ${styles.navLinkActive}`}>Quarter</Link>
             </div>
             <div className={styles.navItem}>
-              <div className={styles.navLink}>Focus</div>
-            </div>
-            <div className={styles.navItem}>
-              <div className={styles.navLink}>
-                <span className={styles.navToggle}>▼</span>Stats
-              </div>
-            </div>
-            <div className={styles.navChildren}>
-              {vectors.map(v => (
-                <div key={v.id} className={styles.navChild}>
-                  <div className={styles.navLink}>
-                    <span className={styles.vecDot} style={{ background: v.color }} />
-                    {v.label}
-                  </div>
-                </div>
-              ))}
+              <Link href="/tasks" className={styles.navLink}>Tasks</Link>
             </div>
           </div>
         </div>
