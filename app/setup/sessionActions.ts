@@ -19,20 +19,22 @@ export async function startSetupSession(
 
   // Write user preferences (replace if restarting setup)
   db.insert(user).values({
-    id:           1,
-    name:         data.name.trim() || 'You',
-    timezone:     data.timezone || 'UTC',
-    distanceUnit: data.distanceUnit,
-    currency:     data.currency,
-    weekStart:    data.weekStart,
-    timeFormat:   data.timeFormat,
-    lennaTone:    data.lennaTone,
+    id:            1,
+    name:          data.name.trim() || 'You',
+    dateOfBirth:   data.dateOfBirth || null,
+    timezone:      data.timezone || 'UTC',
+    distanceUnit:  data.distanceUnit,
+    currency:      data.currency,
+    weekStart:     data.weekStart,
+    timeFormat:    data.timeFormat,
+    lennaTone:     data.lennaTone,
     lennaAutonomy: data.lennaAutonomy,
-    setupDone:    false,
+    setupDone:     false,
   }).onConflictDoUpdate({
     target: user.id,
     set: {
       name:          data.name.trim() || 'You',
+      dateOfBirth:   data.dateOfBirth || null,
       timezone:      data.timezone || 'UTC',
       distanceUnit:  data.distanceUnit,
       currency:      data.currency,
@@ -118,15 +120,16 @@ export async function setupSessionTurn(
     reply = await chatDuringSetup(
       message,
       {
-        userName:   u?.name     ?? 'You',
-        timezone:   u?.timezone ?? 'UTC',
+        userName:      u?.name        ?? 'You',
+        dateOfBirth:   u?.dateOfBirth ?? null,
+        timezone:      u?.timezone    ?? 'UTC',
         lennaTone:     (u?.lennaTone    ?? 'warm')  as 'warm' | 'neutral' | 'direct',
         lennaAutonomy: (u?.lennaAutonomy ?? 'draft') as 'suggest' | 'draft' | 'act',
         phase:         session.phase,
         quarter,
         vectors:    selectedVectors.filter(v => !removedVectors.includes(v.id)),
-        anchors:    currentAnchors.map(a => ({ vectorId: a.vectorId, description: a.description })),
-        draftGoals: currentDraftGoals.map(g => ({ vectorId: g.vectorId, description: g.description, type: g.type })),
+        anchors:    currentAnchors.map(a => ({ vectorId: a.vectorId, description: a.description, targetAge: a.targetAge })),
+        draftGoals: currentDraftGoals.map(g => ({ id: g.id, vectorId: g.vectorId, description: g.description, type: g.type })),
         skippedGoalVectors,
         removedVectors,
       },
@@ -152,42 +155,58 @@ export async function setupSessionTurn(
         }
 
         if (toolName === 'propose_goal') {
-          const { vectorId, description, type, startValue, targetValue, cadencePerWeek, paceShape, rationale } =
-            input as {
-              vectorId: string; description: string; type: string;
-              startValue?: number; targetValue?: number; cadencePerWeek?: number;
-              paceShape?: string; rationale: string;
-            };
+          const {
+            vectorId, description, type, trackabilityTier, dataSource, proxyModel,
+            attestationCadence, startValue, targetValue, cadencePerWeek, paceShape,
+          } = input as {
+            vectorId: string; description: string; type: string;
+            trackabilityTier?: string; dataSource?: string; proxyModel?: string; attestationCadence?: string;
+            startValue?: number; targetValue?: number; cadencePerWeek?: number; paceShape?: string;
+          };
 
-          // Validate
           const validTypes = ['milestone', 'metric', 'consistency'];
           if (!validTypes.includes(type)) return `Invalid type "${type}".`;
 
-          const { start: startDate, end: endDate } = quarterBounds(quarter);
+          // Dedup: skip if an identical draft already exists for this vector+description
+          const dup = db.select().from(goals)
+            .where(and(
+              eq(goals.vectorId, vectorId),
+              eq(goals.quarter, quarter),
+              eq(goals.status, 'draft'),
+            ))
+            .all()
+            .find(g => g.description === description);
+          if (dup) return `Goal for ${vectorId} already drafted: "${description}"`;
 
-          // Upsert — replace if Lenna revises the goal for this vector
-          const existingGoal = db.select().from(goals)
-            .where(and(eq(goals.quarter, quarter), eq(goals.vectorId, vectorId), eq(goals.status, 'draft')))
-            .get();
-          if (existingGoal) {
-            db.delete(goals).where(eq(goals.id, existingGoal.id)).run();
-          }
+          const { start: startDate, end: endDate } = quarterBounds(quarter);
 
           db.insert(goals).values({
             vectorId,
             quarter,
             description,
-            type:           type as 'milestone' | 'metric' | 'consistency',
-            status:         'draft',
-            paceShape:      (paceShape ?? 'linear') as 'linear' | 'easeIn' | 'easeOut' | 'sCurve',
+            type:                type as 'milestone' | 'metric' | 'consistency',
+            status:              'draft',
+            trackabilityTier:    (trackabilityTier ?? null) as 'instrumented' | 'proxy' | 'checkpoint' | 'attested' | null,
+            dataSource:          dataSource          ?? null,
+            proxyModel:          proxyModel          ?? null,
+            attestationCadence:  attestationCadence  ?? null,
+            paceShape:           (paceShape ?? 'linear') as 'linear' | 'easeIn' | 'easeOut' | 'sCurve',
             startDate,
             endDate,
-            startValue:     startValue ?? null,
-            targetValue:    targetValue ?? null,
-            cadencePerWeek: cadencePerWeek ?? null,
+            startValue:          startValue     ?? null,
+            targetValue:         targetValue    ?? null,
+            cadencePerWeek:      cadencePerWeek ?? null,
           }).run();
 
-          return `Goal for ${vectorId} drafted: "${description}" (${type})`;
+          return `Goal for ${vectorId} drafted: "${description}" (${type}, ${trackabilityTier ?? 'unclassified'})`;
+        }
+
+        if (toolName === 'remove_draft_goal') {
+          const { goalId } = input as { goalId: string };
+          const goal = db.select().from(goals).where(and(eq(goals.id, goalId), eq(goals.status, 'draft'))).get();
+          if (!goal) return 'Draft goal not found.';
+          db.delete(goals).where(eq(goals.id, goalId)).run();
+          return `Draft goal "${goal.description}" removed.`;
         }
 
         if (toolName === 'skip_goal') {

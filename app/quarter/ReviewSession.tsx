@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useTransition, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { LennaText } from '@/lib/renderMarkdown';
 import { goalSubline } from '@/lib/ui/goalSubline';
 import { reviewSessionTurn, commitReviewSession } from './reviewActions';
 import type { QuarterReport } from '@/lib/scoring/quarterReport';
 import type { ChatMessage } from '@/lib/llm/reviewChat';
 import type { vectors, goals, user } from '@/lib/db/schema';
-import styles from '../setup/session.module.css';
-import rstyles from './review.module.css';
+import sty from '../setup/session.module.css';
+import styles from './review.module.css';
 
 type User      = typeof user.$inferSelect;
 type Vector    = typeof vectors.$inferSelect;
@@ -32,83 +33,104 @@ type Props = {
   nextQuarter:        string;
   phase:              string;
   report:             QuarterReport;
+  scoreHistory:       { date: string; ol: number }[];
+  olDelta:            number | null;
+  closedStart:        string;
+  closedEnd:          string;
   existingDraftGoals: DraftGoal[];
 };
 
-function olLabel(ol: number | null) {
-  return ol != null ? String(Math.round(ol)) : '—';
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+
+function Sparkline({ history }: { history: { date: string; ol: number }[] }) {
+  if (history.length < 2) return null;
+  const W = 150, H = 46;
+  const ols = history.map(h => h.ol);
+  const minOl = Math.min(...ols), maxOl = Math.max(...ols);
+  const range = maxOl - minOl || 1;
+  const pts = history.map((h, i) => {
+    const x = (i / (history.length - 1)) * W;
+    const y = H - 3 - ((h.ol - minOl) / range) * (H - 6);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const lastY = H - 3 - ((ols[ols.length - 1] - minOl) / range) * (H - 6);
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+      <polyline points={pts} fill="none" stroke="var(--ink-soft)" strokeWidth="1.5" />
+      <circle cx={W} cy={lastY} r="3" fill="var(--ink)" />
+    </svg>
+  );
 }
 
-// ── Right panel: report summary during report/discuss ─────────────────────────
+// ── Scorecard (center, report/discuss phase) ──────────────────────────────────
 
-function ReportPanel({ report, closedQuarter }: { report: QuarterReport; closedQuarter: string }) {
-  const [cqYear, cqNum] = closedQuarter.split('-Q');
-  const label = `Q${cqNum} ${cqYear}`;
+function ScoreCard({
+  report, vectors, olDelta, scoreHistory,
+}: {
+  report:       QuarterReport;
+  vectors:      Vector[];
+  olDelta:      number | null;
+  scoreHistory: { date: string; ol: number }[];
+}) {
+  const olLast = report.olLast != null ? Math.round(report.olLast) : null;
+  const deltaPositive = (olDelta ?? 0) >= 0;
 
   return (
-    <div className={rstyles.reportPanel}>
-      <div className={rstyles.reportHeader}>{label} — final state</div>
-
-      <div className={rstyles.reportBody}>
-        {/* OL arc */}
-        <div className={rstyles.reportSection}>
-          <div className={rstyles.reportSectionLabel}>Operating Level</div>
-          {report.olFirst != null ? (
-            <div className={rstyles.olArc}>
-              <span className={rstyles.olVal}>{olLabel(report.olFirst)}</span>
-              <span className={rstyles.olArrow}>→</span>
-              <span className={rstyles.olVal}>{olLabel(report.olLast)}</span>
-              <span className={rstyles.olMeta}>
-                ↑{olLabel(report.olHigh)} ↓{olLabel(report.olLow)}
+    <div className={styles.scorecard}>
+      {/* OL close */}
+      <div className={styles.olSection}>
+        <div>
+          <div className={styles.olCaption}>operating level · close</div>
+          <div className={styles.olRow}>
+            <span className={styles.olHero}>{olLast ?? '—'}</span>
+            {olDelta != null && (
+              <span className={styles.olDelta} style={{ color: deltaPositive ? 'var(--positive)' : 'var(--attention)' }}>
+                {deltaPositive ? '▲' : '▼'} {Math.abs(olDelta)}{' '}
+                <span className={styles.olVsLabel}>vs last quarter</span>
               </span>
+            )}
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div className={styles.sparklineWrap}>
+          <Sparkline history={scoreHistory} />
+        </div>
+      </div>
+
+      {/* Per-vector grid */}
+      <div className={styles.vectorGridLabel}>Where each vector landed</div>
+      <div className={styles.vectorGrid}>
+        {vectors.map(v => {
+          const vGoals = report.goals.filter(g => g.vectorId === v.id);
+          const avgC   = vGoals.length > 0 ? vGoals.reduce((s, g) => s + g.c, 0) / vGoals.length : null;
+          const avgGap = vGoals.length > 0 ? vGoals.reduce((s, g) => s + g.gap, 0) / vGoals.length : null;
+          const cPct   = avgC != null ? Math.round(avgC * 100) : null;
+          const gapPp  = avgGap != null ? Math.round(avgGap * 100) : null;
+          const deltaColor = gapPp == null ? 'var(--ink-faint)'
+            : gapPp >= 0 ? 'var(--positive)' : 'var(--attention)';
+          const deltaText = gapPp == null ? '—'
+            : gapPp >= 0 ? `▲ ${gapPp}pp` : `▼ ${Math.abs(gapPp)}pp`;
+          return (
+            <div key={v.id} className={styles.vectorGridRow}>
+              <span className={styles.vectorGridSwatch} style={{ background: v.color }} />
+              <span className={styles.vectorGridName}>{v.label}</span>
+              <span className={styles.vectorGridScore}>{cPct != null ? `${cPct}%` : '—'}</span>
+              <span className={styles.vectorGridDelta} style={{ color: deltaColor }}>{deltaText}</span>
             </div>
-          ) : (
-            <div className={rstyles.reportEmpty}>no score data</div>
-          )}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Per-goal */}
-        {report.goals.length > 0 && (
-          <div className={rstyles.reportSection}>
-            <div className={rstyles.reportSectionLabel}>Goals</div>
-            {report.goals.map(g => {
-              const cPct  = Math.round(g.c * 100);
-              const ePct  = Math.round(g.e * 100);
-              const ahead = g.gap >= 0;
-              const gapPct = Math.round(Math.abs(g.gap) * 100);
-              return (
-                <div key={g.goalId} className={rstyles.reportGoal}>
-                  <div className={rstyles.reportGoalDesc}>{g.description}</div>
-                  <div className={rstyles.reportGoalMeta}>
-                    <span className={rstyles.reportGoalType}>{g.type}</span>
-                    <span className={`${rstyles.reportGoalGap} ${ahead ? rstyles.ahead : rstyles.behind}`}>
-                      {ahead ? '+' : '−'}{gapPct}pp
-                    </span>
-                    <span className={rstyles.reportGoalNums}>c {cPct}% · e {ePct}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Activity */}
-        <div className={rstyles.reportSection}>
-          <div className={rstyles.reportSectionLabel}>Activity</div>
-          <div className={rstyles.reportActivity}>
-            <span>{report.daysActive} active days</span>
-            <span>·</span>
-            <span>{report.totalInputs} inputs</span>
-          </div>
-        </div>
+      <div className={styles.scorecardFooter}>
+        Lenna is walking this on the right → ask her anything about the quarter.
       </div>
     </div>
   );
 }
 
-// ── Right panel: draft goals during replan/commit ─────────────────────────────
+// ── Drafts panel (center, replan/commit phase) ────────────────────────────────
 
-function DraftsPanel({
+function DraftsCenter({
   nextQuarter, vectors, draftGoals, skippedGoalVectors, removedVectors,
 }: {
   nextQuarter:        string;
@@ -118,41 +140,41 @@ function DraftsPanel({
   removedVectors:     string[];
 }) {
   const [nqYear, nqNum] = nextQuarter.split('-Q');
-  const label = `Q${nqNum} ${nqYear}`;
-
   return (
-    <div className={styles.draftsPanel}>
-      <div className={styles.draftsHeader}>{label} — planning</div>
-      <div className={styles.draftsList}>
+    <div className={sty.draftsPanel}>
+      <div className={sty.draftsHeader}>Q{nqNum} {nqYear} — planning</div>
+      <div className={sty.draftsList}>
         {vectors
           .filter(v => !removedVectors.includes(v.id))
           .map(v => {
-            const goal    = draftGoals.find(g => g.vectorId === v.id);
-            const skipped = skippedGoalVectors.includes(v.id);
+            const vectorGoals = draftGoals.filter(g => g.vectorId === v.id);
+            const skipped     = skippedGoalVectors.includes(v.id);
             return (
-              <div key={v.id} className={styles.draftVector}>
-                <div className={styles.draftVectorHead}>
-                  <span className={styles.draftDot} style={{ background: v.color }} />
-                  <span className={styles.draftVectorName}>{v.label}</span>
+              <div key={v.id} className={sty.draftVector}>
+                <div className={sty.draftVectorHead}>
+                  <span className={sty.draftDot} style={{ background: v.color }} />
+                  <span className={sty.draftVectorName}>{v.label}</span>
                 </div>
-                {goal ? (
-                  <div className={styles.draftGoal}>
-                    <div className={styles.draftGoalDesc}>{goal.description}</div>
-                    <div className={styles.draftGoalMeta}>
-                      <span className={styles.draftTypeBadge}>{goal.type}</span>
-                      <span className={styles.draftGoalSub}>{goalSubline(goal)}</span>
+                {vectorGoals.length > 0 ? (
+                  vectorGoals.map(goal => (
+                    <div key={goal.id} className={sty.draftGoal}>
+                      <div className={sty.draftGoalDesc}>{goal.description}</div>
+                      <div className={sty.draftGoalMeta}>
+                        <span className={sty.draftTypeBadge}>{goal.type}</span>
+                        <span className={sty.draftGoalSub}>{goalSubline(goal)}</span>
+                      </div>
                     </div>
-                  </div>
+                  ))
                 ) : skipped ? (
-                  <div className={styles.draftSkipped}>sitting out this quarter</div>
+                  <div className={sty.draftSkipped}>sitting out this quarter</div>
                 ) : (
-                  <div className={styles.draftEmpty}>goal pending</div>
+                  <div className={sty.draftEmpty}>goal pending</div>
                 )}
               </div>
             );
           })}
         {removedVectors.length > 0 && (
-          <div className={styles.draftRemovedNote}>
+          <div className={sty.draftRemovedNote}>
             {removedVectors.join(', ')} removed from profile
           </div>
         )}
@@ -165,7 +187,8 @@ function DraftsPanel({
 
 export default function ReviewSession({
   user, vectors, sessionId, closedQuarter, nextQuarter,
-  phase: initialPhase, report, existingDraftGoals,
+  phase: initialPhase, report, scoreHistory, olDelta, closedStart, closedEnd,
+  existingDraftGoals,
 }: Props) {
   const firstName         = user.name.trim().split(' ')[0] || 'you';
   const selectedVectors   = vectors.map(v => ({ id: v.id, label: v.label }));
@@ -182,7 +205,6 @@ export default function ReviewSession({
   const chatEndRef  = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Kick off Lenna's opening message
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -227,55 +249,137 @@ export default function ReviewSession({
     await commitReviewSession(sessionId);
   }
 
-  const canCommit = phase === 'commit' && !committing;
+  const canCommit  = phase === 'commit' && !committing;
   const showReport = phase === 'report' || phase === 'discuss';
 
   const [cqYear, cqNum] = closedQuarter.split('-Q');
   const [nqYear, nqNum] = nextQuarter.split('-Q');
 
-  return (
-    <div className={styles.session}>
+  void firstName; // used via lenna's greeting in reviewSessionTurn
 
-      {/* ── Left: Lenna chat ── */}
-      <div className={styles.chatPanel}>
-        <div className={styles.chatHeader}>
-          <span className={styles.chatLogo}>lifeOS</span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-faint)' }}>
-              Q{cqNum} {cqYear} review
-            </span>
-            <span className={styles.chatPhase}>{phase}</span>
+  return (
+    <div className={styles.shell}>
+
+      {/* ── Sidebar ── */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarBody}>
+          <div className={styles.sidebarLogo}>lifeOS</div>
+          <div className={styles.navTree}>
+            <div className={styles.navItem}>
+              <div className={styles.navLink}>Today</div>
+            </div>
+            <div className={styles.navItem}>
+              <div className={`${styles.navLink} ${styles.navLinkActive}`}>Quarter</div>
+            </div>
+            <div className={styles.navItem}>
+              <div className={styles.navLink}>Focus</div>
+            </div>
+            <div className={styles.navItem}>
+              <div className={styles.navLink}>
+                <span className={styles.navToggle}>▼</span>Stats
+              </div>
+            </div>
+            <div className={styles.navChildren}>
+              {vectors.map(v => (
+                <div key={v.id} className={styles.navChild}>
+                  <div className={styles.navLink}>
+                    <span className={styles.vecDot} style={{ background: v.color }} />
+                    {v.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className={styles.sidebarFooter}>
+          <div className={styles.sidebarFooterLink}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.75 }}>
+              <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
+              <circle cx="9" cy="8" r="2.3" fill="var(--bg)" /><circle cx="15" cy="16" r="2.3" fill="var(--bg)" />
+            </svg>
+            Settings
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Center pane ── */}
+      <div className={styles.center}>
+        <div className={styles.centerHeader}>
+          <Link href="/quarter" className={styles.backChip}>← Q{nqNum}</Link>
+          <div>
+            <div className={styles.centerTitle}>Reviewing · Q{cqNum} {cqYear}</div>
+            <div className={styles.centerSub}>closed {closedEnd} · {closedStart}–{closedEnd}</div>
           </div>
         </div>
 
-        <div className={styles.chatBody}>
+        {showReport ? (
+          <ScoreCard
+            report={report}
+            vectors={vectors}
+            olDelta={olDelta}
+            scoreHistory={scoreHistory}
+          />
+        ) : (
+          <>
+            <DraftsCenter
+              nextQuarter={nextQuarter}
+              vectors={vectors.filter(v => !removedVectors.includes(v.id))}
+              draftGoals={draftGoals}
+              skippedGoalVectors={skippedGoalVectors}
+              removedVectors={removedVectors}
+            />
+            <div className={sty.draftsFooter}>
+              <button
+                className={`${sty.commitBtn} ${canCommit ? sty.commitBtnReady : ''}`}
+                onClick={handleCommit}
+                disabled={!canCommit}
+              >
+                {committing ? 'Activating…' : `Confirm Q${nqNum} ${nqYear} →`}
+              </button>
+              {phase !== 'commit' && (
+                <div className={sty.commitHint}>Lenna will confirm when everything is set.</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Lenna rail ── */}
+      <div className={styles.rail}>
+        <div className={styles.railHeader}>
+          <span className={styles.railAvatar}>L</span>
+          <span className={styles.railName}>Lenna</span>
+          <span className={styles.railLabel}>Q{cqNum} review</span>
+        </div>
+
+        <div className={styles.railBody}>
           {messages.length === 0 && (
-            <div className={styles.chatLoading}>Starting review…</div>
+            <div className={sty.chatLoading}>Starting review…</div>
           )}
           {messages.map((m, i) =>
             m.role === 'user' ? (
-              <div key={i} className={styles.chatUser}>{m.text}</div>
+              <div key={i} className={styles.railMsgUser}>{m.text}</div>
             ) : (
-              <div key={i} className={styles.chatLenna}>
-                <div className={styles.chatLennaLabel}>lenna</div>
-                <LennaText text={m.text} className={styles.chatLennaText} />
+              <div key={i} className={styles.railMsg}>
+                <LennaText text={m.text} className={styles.railMsgText} />
               </div>
             )
           )}
           {pending && (
-            <div className={styles.chatLenna}>
-              <div className={styles.chatLennaLabel}>lenna</div>
-              <div className={`${styles.chatLennaText} ${styles.chatPending}`}>…</div>
+            <div className={styles.railMsg}>
+              <div className={styles.railMsgPending}>…</div>
             </div>
           )}
-          {inputError && <div className={styles.chatError}>{inputError}</div>}
+          {inputError && (
+            <div className={styles.railError}>{inputError}</div>
+          )}
           <div ref={chatEndRef} />
         </div>
 
-        <div className={styles.chatInputWrap}>
+        <div className={styles.railCompose}>
           <textarea
-            className={styles.chatInput}
-            placeholder="Reply to Lenna…"
+            className={styles.railInput}
+            placeholder={showReport ? `Ask about Q${cqNum}…` : 'Ask Lenna about the plan…'}
             rows={2}
             value={inputText}
             disabled={pending}
@@ -285,39 +389,10 @@ export default function ReviewSession({
             }}
           />
           {inputText.trim() && !pending && (
-            <div className={styles.chatInputHint}>↵ send · shift+↵ newline</div>
+            <div className={styles.railInputHint}>↵ send · shift+↵ newline</div>
           )}
         </div>
       </div>
-
-      {/* ── Right: report summary or draft goals ── */}
-      {showReport ? (
-        <ReportPanel report={report} closedQuarter={closedQuarter} />
-      ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <DraftsPanel
-            nextQuarter={nextQuarter}
-            vectors={vectors.filter(v => !removedVectors.includes(v.id))}
-            draftGoals={draftGoals}
-            skippedGoalVectors={skippedGoalVectors}
-            removedVectors={removedVectors}
-          />
-          <div className={styles.draftsFooter}>
-            <button
-              className={`${styles.commitBtn} ${canCommit ? styles.commitBtnReady : ''}`}
-              onClick={handleCommit}
-              disabled={!canCommit}
-            >
-              {committing ? 'Activating…' : `Confirm Q${nqNum} ${nqYear} →`}
-            </button>
-            {phase !== 'commit' && (
-              <div className={styles.commitHint}>
-                Lenna will confirm when everything is set.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
     </div>
   );

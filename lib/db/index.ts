@@ -25,6 +25,7 @@ function migrate(sqlite: InstanceType<typeof Database>) {
       time_format TEXT NOT NULL DEFAULT '24h',
       lenna_tone TEXT NOT NULL DEFAULT 'warm',
       lenna_autonomy TEXT NOT NULL DEFAULT 'draft',
+      date_of_birth TEXT,
       setup_done INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER
     );
@@ -55,6 +56,10 @@ function migrate(sqlite: InstanceType<typeof Database>) {
       description TEXT NOT NULL,
       type TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
+      trackability_tier TEXT,
+      data_source TEXT,
+      proxy_model TEXT,
+      attestation_cadence TEXT,
       pace_shape TEXT NOT NULL DEFAULT 'linear',
       pace_param REAL,
       weight REAL NOT NULL DEFAULT 1,
@@ -154,8 +159,12 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   if (goalCols.has('pace_type') && !goalCols.has('pace_shape')) {
     sqlite.exec(`ALTER TABLE goals RENAME COLUMN pace_type TO pace_shape;`);
   }
-  if (!goalCols.has('status'))           sqlite.exec(`ALTER TABLE goals ADD COLUMN status TEXT NOT NULL DEFAULT 'active';`);
-  if (!goalCols.has('pace_param'))       sqlite.exec(`ALTER TABLE goals ADD COLUMN pace_param REAL;`);
+  if (!goalCols.has('status'))               sqlite.exec(`ALTER TABLE goals ADD COLUMN status TEXT NOT NULL DEFAULT 'active';`);
+  if (!goalCols.has('trackability_tier'))    sqlite.exec(`ALTER TABLE goals ADD COLUMN trackability_tier TEXT;`);
+  if (!goalCols.has('data_source'))          sqlite.exec(`ALTER TABLE goals ADD COLUMN data_source TEXT;`);
+  if (!goalCols.has('proxy_model'))          sqlite.exec(`ALTER TABLE goals ADD COLUMN proxy_model TEXT;`);
+  if (!goalCols.has('attestation_cadence'))  sqlite.exec(`ALTER TABLE goals ADD COLUMN attestation_cadence TEXT;`);
+  if (!goalCols.has('pace_param'))           sqlite.exec(`ALTER TABLE goals ADD COLUMN pace_param REAL;`);
   if (!goalCols.has('weight'))           sqlite.exec(`ALTER TABLE goals ADD COLUMN weight REAL NOT NULL DEFAULT 1;`);
   if (!goalCols.has('start_date'))       sqlite.exec(`ALTER TABLE goals ADD COLUMN start_date TEXT;`);
   if (!goalCols.has('end_date'))         sqlite.exec(`ALTER TABLE goals ADD COLUMN end_date TEXT;`);
@@ -182,6 +191,10 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   if (!inputCols.has('value'))          sqlite.exec(`ALTER TABLE inputs ADD COLUMN value REAL;`);
   if (!inputCols.has('occurred_count')) sqlite.exec(`ALTER TABLE inputs ADD COLUMN occurred_count REAL;`);
   if (!inputCols.has('duration_min'))   sqlite.exec(`ALTER TABLE inputs ADD COLUMN duration_min REAL;`);
+
+  // user
+  const userCols = cols(sqlite, 'user');
+  if (!userCols.has('date_of_birth')) sqlite.exec(`ALTER TABLE user ADD COLUMN date_of_birth TEXT;`);
 
   // scores
   const scoreCols = cols(sqlite, 'scores');

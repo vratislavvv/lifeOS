@@ -2,108 +2,194 @@ import { redirect } from 'next/navigation';
 import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { user, vectors, goals, scores, inputs, sessions } from '@/lib/db/schema';
-import { quarterPaceNow, goalTau, expectedPace } from '@/lib/scoring/pace';
+import { goalTau, quarterPaceNow, expectedPace } from '@/lib/scoring/pace';
 import { computeCompletion } from '@/lib/scoring/completion';
-import { quarterBounds, prevQuarterOf, todayStr } from '@/lib/dates';
+import { quarterBounds, prevQuarterOf, nextQuarterOf, todayStr } from '@/lib/dates';
+import type { QuarterReport } from '@/lib/scoring/quarterReport';
+import type { PastQuarterEntry } from './QuarterShell';
 import QuarterShell from './QuarterShell';
 
 export const dynamic = 'force-dynamic';
 
-
-export default function QuarterPage() {
+export default async function QuarterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const u = db.select().from(user).get();
   if (!u || !u.setupDone) redirect('/setup');
 
-  const now     = new Date();
-  const today   = todayStr();
-  const quarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
-  const bounds  = quarterBounds(quarter);
-  const tau     = quarterPaceNow();
+  const now      = new Date();
+  const today    = todayStr();
+  const currentQ = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
 
-  const [qYear, qMon] = [parseInt(quarter.split('-Q')[0]), (parseInt(quarter.split('-Q')[1]) - 1) * 3];
+  const params   = await searchParams;
+  const viewedQ  = params.q ?? currentQ;
+  const isCurrentQ = viewedQ === currentQ;
+
+  const bounds = quarterBounds(viewedQ);
+  // For historical quarters, compute completion as of the quarter's last day
+  const asOf   = isCurrentQ ? today : bounds.end;
+
+  const [qYear, qMon] = [parseInt(viewedQ.split('-Q')[0]), (parseInt(viewedQ.split('-Q')[1]) - 1) * 3];
   const startLabel = new Date(qYear, qMon, 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const endLabel   = new Date(qYear, qMon + 3, 0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  // Detect if a quarter review is due
-  const closedQuarter = prevQuarterOf(quarter);
-  const prevEnd = quarterBounds(closedQuarter).end;
-  const reviewDue = today > prevEnd;
+  // ── Review due (current quarter only) ─────────────────────────────────────
+  const closedQ      = prevQuarterOf(currentQ);
+  const closedBounds = quarterBounds(closedQ);
+  const reviewDue    = today > closedBounds.end;
 
-  // Check whether there's already an open or complete review for this quarter
   const existingReview = reviewDue
     ? db.select().from(sessions)
-        .where(and(
-          eq(sessions.type, 'quarter_review'),
-          eq(sessions.quarter, quarter),
-        ))
+        .where(and(eq(sessions.type, 'quarter_review'), eq(sessions.quarter, currentQ)))
         .get()
     : null;
 
-  const reviewPending = reviewDue && (!existingReview || existingReview.status === 'open');
+  // Banner only if there were actual inputs in the closed quarter
+  const hasPrevInputs = reviewDue
+    ? db.select().from(inputs)
+        .where(and(gte(inputs.date, closedBounds.start), lte(inputs.date, closedBounds.end)))
+        .all().length > 0
+    : false;
 
+  const reviewPending = isCurrentQ && reviewDue && hasPrevInputs &&
+    (!existingReview || existingReview.status === 'open');
+
+  // ── Data for the viewed quarter ────────────────────────────────────────────
   const vecs = db.select().from(vectors).orderBy(asc(vectors.order)).all();
 
   const activeGoals = db.select().from(goals)
-    .where(eq(goals.quarter, quarter))
+    .where(eq(goals.quarter, viewedQ))
     .all()
     .filter(g => g.status === 'active');
 
+  const hasData = activeGoals.length > 0;
+
   const quarterInputs = db.select().from(inputs)
-    .where(and(gte(inputs.date, bounds.start), lte(inputs.date, today)))
+    .where(and(gte(inputs.date, bounds.start), lte(inputs.date, asOf)))
     .all();
 
-  const scoreTrend = db.select().from(scores)
-    .where(gte(scores.date, bounds.start))
+  const latestScore = db.select().from(scores)
+    .where(and(gte(scores.date, bounds.start), lte(scores.date, asOf)))
     .orderBy(asc(scores.date))
-    .all();
-
-  const latestScore = scoreTrend.at(-1) ?? null;
+    .all()
+    .at(-1) ?? null;
 
   const goalCards = activeGoals.map(g => {
-    // Inputs for this goal: exact match first, then untagged vector-level inputs
     const goalInputs = quarterInputs.filter(i =>
       i.goalId === g.id || (i.goalId === null && i.vectorId === g.vectorId)
     );
     const c = computeCompletion(
       {
-        type:           g.type as 'milestone' | 'metric' | 'consistency',
-        startDate:      g.startDate,
-        cadencePerWeek: g.cadencePerWeek,
-        startValue:     g.startValue,
-        targetValue:    g.targetValue,
+        type:             g.type as 'milestone' | 'metric' | 'consistency',
+        trackabilityTier: g.trackabilityTier,
+        proxyModel:       g.proxyModel,
+        startDate:        g.startDate,
+        cadencePerWeek:   g.cadencePerWeek,
+        startValue:       g.startValue,
+        targetValue:      g.targetValue,
       },
       goalInputs.map(i => ({
         kind:          i.kind,
         progressDelta: i.progressDelta,
         value:         i.value,
         occurredCount: i.occurredCount,
+        durationMin:   i.durationMin,
         confidence:    i.confidence,
         date:          i.date,
       })),
-      today,
+      asOf,
     );
-    const gTau = goalTau(g.startDate, g.endDate, today);
+    const gTau = goalTau(g.startDate, g.endDate, asOf);
     const e    = expectedPace(gTau, g.paceShape, g.paceParam);
     return { ...g, c, e, gap: c - e };
   });
 
+  // τ is live for current quarter; 1 (complete) for historical
+  const tau = isCurrentQ ? quarterPaceNow() : 1;
+
   const endMs   = new Date(bounds.end + 'T23:59:59').getTime();
-  const daysLeft = Math.max(0, Math.ceil((endMs - now.getTime()) / 86_400_000));
+  const daysLeft = isCurrentQ
+    ? Math.max(0, Math.ceil((endMs - now.getTime()) / 86_400_000))
+    : 0;
+
+  // Navigation: previous always exists; next only if it's not in the future
+  const prevQ = prevQuarterOf(viewedQ);
+  const nextQ = nextQuarterOf(viewedQ);
+  const nextQAfterCurrent = nextQ > currentQ;
+
+  // ── Past quarters data (for the popover) ──────────────────────────────────
+  const pastQuarters: PastQuarterEntry[] = [];
+  {
+    const olCache = new Map<string, number | null>();
+    const getLastOl = (q: string): number | null => {
+      if (olCache.has(q)) return olCache.get(q) ?? null;
+      const b = quarterBounds(q);
+      const rows = db.select().from(scores)
+        .where(and(gte(scores.date, b.start), lte(scores.date, b.end)))
+        .orderBy(asc(scores.date))
+        .all();
+      const val = rows.length > 0 ? rows[rows.length - 1].operatingLevel : null;
+      olCache.set(q, val);
+      return val;
+    };
+
+    let pq = prevQuarterOf(currentQ);
+    for (let i = 0; i < 8; i++) {
+      const olLast = getLastOl(pq);
+      if (olLast == null) { pq = prevQuarterOf(pq); continue; }
+
+      const prevOlLast = getLastOl(prevQuarterOf(pq));
+      const olDelta = prevOlLast != null ? Math.round(olLast) - Math.round(prevOlLast) : null;
+
+      // Summary from the quarter_review session stored against the next quarter
+      const reviewSess = db.select().from(sessions)
+        .where(and(
+          eq(sessions.type, 'quarter_review'),
+          eq(sessions.quarter, nextQuarterOf(pq)),
+        ))
+        .get();
+      let summary: string | null = null;
+      if (reviewSess?.report) {
+        try {
+          const rep = reviewSess.report as unknown as QuarterReport;
+          const vd = rep.vectors?.filter(v => v.avgGap != null) ?? [];
+          if (vd.length >= 2) {
+            const sorted = [...vd].sort((a, b) => (b.avgGap ?? 0) - (a.avgGap ?? 0));
+            const best  = sorted[0];
+            const worst = sorted[sorted.length - 1];
+            summary = (worst.avgGap ?? 0) < -0.05
+              ? `${best.label} led · ${worst.label} slipped`
+              : `${best.label} led`;
+          }
+        } catch { /* ignore malformed report */ }
+      }
+
+      pastQuarters.push({ quarter: pq, olLast, olDelta, summary });
+      pq = prevQuarterOf(pq);
+    }
+  }
 
   return (
     <QuarterShell
       user={u}
       vectors={vecs}
       goalCards={goalCards}
-      scoreTrend={scoreTrend.map(s => ({ date: s.date, ol: s.operatingLevel }))}
       latestScore={latestScore}
-      quarter={quarter}
+      quarter={viewedQ}
+      currentQuarter={currentQ}
+      prevQuarter={prevQ}
+      nextQuarter={nextQAfterCurrent ? null : nextQ}
       tau={tau}
       quarterStart={startLabel}
       quarterEnd={endLabel}
+      quarterIsoStart={bounds.start}
       daysLeft={daysLeft}
+      hasData={hasData}
       reviewPending={reviewPending}
-      closedQuarter={closedQuarter}
+      closedQuarter={closedQ}
+      pastQuarters={pastQuarters}
     />
   );
 }

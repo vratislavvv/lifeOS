@@ -3,6 +3,7 @@ import { goals, inputs, scores, vectors } from '@/lib/db/schema';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { expectedPace as sharedExpectedPace } from './pace';
 import { MAX_INPUT_DELTA, CONFIDENCE_FLOOR } from './constants';
+import { riegelProjection, proxyMetricCompletion } from './proxyModels';
 import { quarterBounds as sharedQuarterBounds } from '@/lib/dates';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -104,6 +105,19 @@ function computeCompletion(goal: GoalRow, goalInputs: InputRow[], asOf: string):
     if (goal.startValue == null || goal.targetValue == null) {
       return { c: 0, finalValue: null, scheduledPeriods: null, completedPeriods: null };
     }
+
+    // Proxy branch: derive currentValue from the proxy model (e.g. Riegel)
+    if (goal.trackabilityTier === 'proxy' && goal.proxyModel?.startsWith('riegel')) {
+      const targetDist = goal.proxyModel.includes(':') ? parseFloat(goal.proxyModel.split(':')[1]) : 42.195;
+      const effort = goalInputs
+        .filter(i => i.kind === 'metric_value' && i.value != null && i.durationMin != null && i.durationMin > 0)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      if (!effort) return { c: 0, finalValue: null, scheduledPeriods: null, completedPeriods: null };
+      const projectedMins = riegelProjection(effort.durationMin! * 60, effort.value!, targetDist) / 60;
+      const c = proxyMetricCompletion(goal.startValue, projectedMins, goal.targetValue);
+      return { c, finalValue: projectedMins, scheduledPeriods: null, completedPeriods: null };
+    }
+
     const readings = goalInputs
       .filter(i => i.kind === 'metric_value' && i.value != null)
       .sort((a, b) => a.date.localeCompare(b.date));

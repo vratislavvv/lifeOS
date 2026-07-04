@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { and, asc, desc, eq, lt } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { user, vectors, goals, scores, tasks, taskGroups } from '@/lib/db/schema';
+import { user, vectors, scores, tasks, taskGroups } from '@/lib/db/schema';
 import { quarterPaceNow } from '@/lib/scoring/pace';
 import TodayShell from './TodayShell';
 
@@ -15,7 +15,6 @@ export default function TodayPage() {
 
   const now = new Date();
   const quarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
-  const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
 
   const today = now.toISOString().split('T')[0];
   const latestScore = db.select().from(scores)
@@ -36,7 +35,6 @@ export default function TodayPage() {
     <TodayShell
       user={u}
       vectors={vecs}
-      goals={quarterGoals}
       score={latestScore}
       groups={groups}
       todayTasks={todayTasks}

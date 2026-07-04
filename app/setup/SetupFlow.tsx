@@ -13,13 +13,13 @@ import StepLenna from './steps/StepLenna';
 
 const INITIAL: SetupData = {
   name:          '',
+  dateOfBirth:   '',
   timezone:      '',
   distanceUnit:  'km',
   currency:      'EUR',
   weekStart:     'mon',
   timeFormat:    '24h',
   vectors:       [...VECTOR_KEYS],
-  goals:         {},
   lennaTone:     'warm',
   lennaAutonomy: 'draft',
 };

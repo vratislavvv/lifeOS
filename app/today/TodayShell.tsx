@@ -10,11 +10,10 @@ import CalSection from './CalSection';
 import { sendToLenna } from './actions';
 import { toggleTask, deleteTask } from './taskActions';
 import type { ChatMessage } from '@/lib/llm/chat';
-import type { vectors, goals, scores, tasks, taskGroups, user } from '@/lib/db/schema';
+import type { vectors, scores, tasks, taskGroups, user } from '@/lib/db/schema';
 
 type User = typeof user.$inferSelect;
 type Vector = typeof vectors.$inferSelect;
-type Goal = typeof goals.$inferSelect;
 type Score = typeof scores.$inferSelect;
 type Task = typeof tasks.$inferSelect;
 type TaskGroup = typeof taskGroups.$inferSelect;
@@ -22,7 +21,6 @@ type TaskGroup = typeof taskGroups.$inferSelect;
 type Props = {
   user: User;
   vectors: Vector[];
-  goals: Goal[];
   score: Score | null;
   groups: TaskGroup[];
   todayTasks: Task[];
@@ -56,7 +54,7 @@ function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean 
   return { text: `due ${label}`, overdue: false };
 }
 
-export default function TodayShell({ user, vectors, goals, score, groups, todayTasks, currentQuarter, quarterPace }: Props) {
+export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace }: Props) {
   const today = new Date();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);

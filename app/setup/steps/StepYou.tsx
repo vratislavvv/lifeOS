@@ -1,7 +1,14 @@
+'use client';
+
 import type { StepProps } from '../types';
 import styles from '../setup.module.css';
 import Segmented from '../Segmented';
 import NavRow from '../NavRow';
+
+function localeDateFormat(): string {
+  const parts = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(2025, 11, 31));
+  return parts.map(p => p.type === 'year' ? 'YYYY' : p.type === 'month' ? 'MM' : p.type === 'day' ? 'DD' : p.value).join('');
+}
 
 export default function StepYou({ data, onChange, onNext, onBack }: StepProps) {
   return (
@@ -20,6 +27,21 @@ export default function StepYou({ data, onChange, onNext, onBack }: StepProps) {
         onChange={e => onChange({ name: e.target.value })}
         autoComplete="off"
       />
+
+      <div className={styles.fieldLabel} style={{ marginTop: 18 }}>
+        Date of birth
+        <span style={{ fontWeight: 400, color: 'var(--ink-faint)', marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          {localeDateFormat()}
+        </span>
+      </div>
+      <input
+        className={styles.textInput}
+        type="date"
+        value={data.dateOfBirth}
+        onChange={e => onChange({ dateOfBirth: e.target.value })}
+        max={new Date().toISOString().slice(0, 10)}
+      />
+
       <div className={styles.fieldHint}>
         {data.timezone
           ? `Detected timezone · ${data.timezone}`

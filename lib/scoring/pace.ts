@@ -21,7 +21,7 @@ export function quarterPaceNow(): number {
   const qEnd   = new Date(now.getFullYear(), q * 3, 0);
   return Math.min(Math.max(
     (now.getTime() - qStart.getTime()) / (qEnd.getTime() - qStart.getTime()),
-    0, 1,
+    0,
   ), 1);
 }
 

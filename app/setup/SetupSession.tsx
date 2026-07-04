@@ -92,10 +92,8 @@ export default function SetupSession({ data }: Props) {
       if (result.phase)      setPhase(result.phase);
       if (result.anchors)    setAnchors(result.anchors);
       if (result.draftGoals) setDraftGoals(result.draftGoals);
-      if (result.skippedGoalVectors?.length)
-        setSkippedGoalVectors(prev => [...new Set([...prev, ...result.skippedGoalVectors])]);
-      if (result.removedVectors?.length)
-        setRemovedVectors(prev => [...new Set([...prev, ...result.removedVectors])]);
+      setSkippedGoalVectors(result.skippedGoalVectors);
+      setRemovedVectors(result.removedVectors);
     });
   }
 
@@ -173,9 +171,9 @@ export default function SetupSession({ data }: Props) {
             .filter(key => !removedVectors.includes(key))
             .map(key => {
               const v       = VECTORS[key as VectorKey];
-              const anchor  = anchors.find(a => a.vectorId === key);
-              const goal    = draftGoals.find(g => g.vectorId === key);
-              const skipped = skippedGoalVectors.includes(key);
+              const anchor      = anchors.find(a => a.vectorId === key);
+              const vectorGoals = draftGoals.filter(g => g.vectorId === key);
+              const skipped     = skippedGoalVectors.includes(key);
 
               return (
                 <div key={key} className={styles.draftVector}>
@@ -193,14 +191,16 @@ export default function SetupSession({ data }: Props) {
                     <div className={styles.draftEmpty}>anchor pending</div>
                   )}
 
-                  {goal ? (
-                    <div className={styles.draftGoal}>
-                      <div className={styles.draftGoalDesc}>{goal.description}</div>
-                      <div className={styles.draftGoalMeta}>
-                        <span className={styles.draftTypeBadge}>{goal.type}</span>
-                        <span className={styles.draftGoalSub}>{goalSubline(goal)}</span>
+                  {vectorGoals.length > 0 ? (
+                    vectorGoals.map(goal => (
+                      <div key={goal.id} className={styles.draftGoal}>
+                        <div className={styles.draftGoalDesc}>{goal.description}</div>
+                        <div className={styles.draftGoalMeta}>
+                          <span className={styles.draftTypeBadge}>{goal.type}</span>
+                          <span className={styles.draftGoalSub}>{goalSubline(goal)}</span>
+                        </div>
                       </div>
-                    </div>
+                    ))
                   ) : skipped ? (
                     <div className={styles.draftSkipped}>sitting out this quarter</div>
                   ) : (
@@ -209,11 +209,6 @@ export default function SetupSession({ data }: Props) {
                 </div>
               );
             })}
-          {removedVectors.length > 0 && (
-            <div className={styles.draftRemovedNote}>
-              {removedVectors.map(id => VECTORS[id as VectorKey]?.label ?? id).join(', ')} removed from profile
-            </div>
-          )}
         </div>
 
         <div className={styles.draftsFooter}>
@@ -226,7 +221,7 @@ export default function SetupSession({ data }: Props) {
           </button>
           {phase !== 'commit' && (
             <div className={styles.commitHint}>
-              Lenna will ask for confirmation when everything is set.
+              Lenna unlocks this once all vectors are resolved.
             </div>
           )}
         </div>

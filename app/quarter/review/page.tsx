@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { user, vectors, goals, sessions } from '@/lib/db/schema';
+import { user, vectors, goals, sessions, scores } from '@/lib/db/schema';
 import { computeQuarterReport } from '@/lib/scoring/quarterReport';
-import { prevQuarterOf, nextQuarterOf, quarterBounds, todayStr } from '@/lib/dates';
+import { prevQuarterOf, quarterBounds, todayStr } from '@/lib/dates';
 import ReviewSession from '../ReviewSession';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +49,32 @@ export default function ReviewPage() {
     .where(and(eq(goals.quarter, currentQuarter), eq(goals.status, 'draft')))
     .all();
 
+  // Score history for sparkline (closed quarter)
+  const closedBounds = quarterBounds(closedQuarter);
+  const scoreHistory = db.select().from(scores)
+    .where(and(gte(scores.date, closedBounds.start), lte(scores.date, closedBounds.end)))
+    .orderBy(asc(scores.date))
+    .all()
+    .map(s => ({ date: s.date, ol: s.operatingLevel }));
+
+  // OL delta vs the quarter before closedQuarter
+  const prevQBounds = quarterBounds(prevQuarterOf(closedQuarter));
+  const prevQScores = db.select().from(scores)
+    .where(and(gte(scores.date, prevQBounds.start), lte(scores.date, prevQBounds.end)))
+    .orderBy(asc(scores.date))
+    .all();
+  const prevOlLast = prevQScores.length > 0 ? prevQScores[prevQScores.length - 1].operatingLevel : null;
+  const olDelta = report.olLast != null && prevOlLast != null
+    ? Math.round(report.olLast) - Math.round(prevOlLast)
+    : null;
+
+  // Closed quarter date labels
+  const [cqYear, cqNum] = closedQuarter.split('-Q');
+  const closedStart = new Date(parseInt(cqYear), (parseInt(cqNum) - 1) * 3, 1)
+    .toLocaleDateString('en-US', { month: 'short' });
+  const closedEnd = new Date(parseInt(cqYear), parseInt(cqNum) * 3, 0)
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
   return (
     <ReviewSession
       user={u}
@@ -58,6 +84,10 @@ export default function ReviewPage() {
       nextQuarter={currentQuarter}
       phase={session.phase}
       report={report}
+      scoreHistory={scoreHistory}
+      olDelta={olDelta}
+      closedStart={closedStart}
+      closedEnd={closedEnd}
       existingDraftGoals={existingDraftGoals.map(g => ({
         id:             g.id,
         vectorId:       g.vectorId,

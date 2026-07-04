@@ -1,150 +1,242 @@
 'use client';
 
-import { useState, useTransition, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './quarter.module.css';
-import { LennaText } from '@/lib/renderMarkdown';
-import { sendToLenna } from '@/app/today/actions';
-import type { ChatMessage } from '@/lib/llm/chat';
 import type { vectors, goals, scores, user } from '@/lib/db/schema';
+
+export type PastQuarterEntry = {
+  quarter:  string;
+  olLast:   number | null;
+  olDelta:  number | null;
+  summary:  string | null;
+};
 
 type User     = typeof user.$inferSelect;
 type Vector   = typeof vectors.$inferSelect;
-type Score    = typeof scores.$inferSelect;
 type GoalCard = typeof goals.$inferSelect & { c: number; e: number; gap: number };
 
 type Props = {
-  user: User;
-  vectors: Vector[];
-  goalCards: GoalCard[];
-  scoreTrend: { date: string; ol: number }[];
-  latestScore: Score | null;
-  quarter: string;
-  tau: number;
-  quarterStart: string;
-  quarterEnd: string;
-  daysLeft: number;
-  reviewPending?: boolean;
-  closedQuarter?: string;
+  user:             User;
+  vectors:          Vector[];
+  goalCards:        GoalCard[];
+  latestScore:      typeof scores.$inferSelect | null;
+  quarter:          string;
+  currentQuarter:   string;
+  prevQuarter:      string;
+  nextQuarter:      string | null;
+  tau:              number;
+  quarterStart:     string;
+  quarterEnd:       string;
+  quarterIsoStart:  string;
+  daysLeft:         number;
+  hasData:          boolean;
+  reviewPending?:   boolean;
+  closedQuarter?:   string;
+  pastQuarters:     PastQuarterEntry[];
 };
 
-// ── Sparkline ────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function Sparkline({ points }: { points: { date: string; ol: number }[] }) {
-  if (points.length < 2) {
-    return <div className={styles.sparkEmpty}>no data yet</div>;
-  }
-  const W = 120, H = 40;
-  const dates = points.map(p => new Date(p.date + 'T00:00:00').getTime());
-  const minD  = dates[0], maxD = dates[dates.length - 1];
-  const rangeD = maxD - minD || 1;
-
-  const coords = points.map((p, i) => {
-    const x = ((dates[i] - minD) / rangeD) * (W - 6) + 3;
-    const y = H - 4 - (p.ol / 100) * (H - 8);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-
-  return (
-    <svg width={W} height={H} className={styles.sparkSvg}>
-      <polyline
-        points={coords.join(' ')}
-        fill="none"
-        stroke="var(--ink-soft)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+function quarterLabel(q: string) {
+  const [year, num] = q.split('-Q');
+  return `Q${num} · ${year}`;
 }
 
-// ── Goal card ────────────────────────────────────────────────────────────────
+function axisLabels(quarter: string, startLabel: string, endLabel: string) {
+  const [year, num] = quarter.split('-Q');
+  const mid = new Date(parseInt(year), (parseInt(num) - 1) * 3 + 1, 1)
+    .toLocaleDateString('en-US', { month: 'short' });
+  return [startLabel, mid, endLabel];
+}
 
-function GoalRow({ g, tau }: { g: GoalCard; tau: number }) {
-  const ahead  = g.gap >= 0;
-  const cPct   = Math.round(g.c   * 100);
-  const ePct   = Math.round(g.e   * 100);
-  const gapPct = Math.round(Math.abs(g.gap) * 100);
+type VectorRow = Vector & {
+  vGoals:   GoalCard[];
+  hasGoals: boolean;
+  avgC:     number;
+  avgE:     number;
+  gap:      number;
+};
+
+function buildVectorRows(vectors: Vector[], goalCards: GoalCard[]): VectorRow[] {
+  return vectors.map(v => {
+    const vGoals  = goalCards.filter(g => g.vectorId === v.id);
+    const hasGoals = vGoals.length > 0;
+    const avgC  = hasGoals ? vGoals.reduce((s, g) => s + g.c, 0) / vGoals.length : 0;
+    const avgE  = hasGoals ? vGoals.reduce((s, g) => s + g.e, 0) / vGoals.length : 0;
+    const gap   = hasGoals ? avgC - avgE : 0;
+    return { ...v, vGoals, hasGoals, avgC, avgE, gap };
+  });
+}
+
+function rowStatus(row: VectorRow): { text: string; cls: string } {
+  if (!row.hasGoals) return { text: '—', cls: styles.statusEmpty };
+  if (row.gap >=  0.02) return { text: 'Ahead',    cls: styles.statusPositive };
+  if (row.gap >= -0.05) return { text: 'On pace',  cls: styles.statusPositive };
+  return { text: `−${Math.round(Math.abs(row.gap) * 100)}pp`, cls: styles.statusBehind };
+}
+
+// ── Past-quarters popover ─────────────────────────────────────────────────────
+
+function PastQuartersPicker({
+  onClose, currentQuarter, onSelect, pastQuarters,
+}: {
+  onClose:      () => void;
+  currentQuarter: string;
+  onSelect:     (q: string) => void;
+  pastQuarters: PastQuarterEntry[];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [onClose]);
+
+  const count = pastQuarters.length;
 
   return (
-    <div className={styles.goalCard}>
-      <div className={styles.goalDesc}>{g.description}</div>
-      <div className={styles.goalMeta}>
-        <span className={styles.typeBadge}>{g.type}</span>
-        <span className={`${styles.gapBadge} ${ahead ? styles.gapAhead : styles.gapBehind}`}>
-          {ahead ? '+' : '−'}{gapPct}pp
+    <div className={styles.pastPicker} ref={ref}>
+      <div className={styles.pastPickerHeader}>
+        <span>Past quarters</span>
+        <span className={styles.pastPickerCount}>
+          {count === 0 ? 'none yet' : `${count} recorded`}
         </span>
       </div>
-      <div className={styles.goalTrackWrap}>
-        <div className={styles.goalTrackBg} />
-        <div className={styles.goalFill} style={{ width: `${g.c * 100}%` }} />
-        <div className={styles.goalPaceTick} style={{ left: `${g.e * 100}%` }} />
-      </div>
-      <div className={styles.goalNums}>
-        <span className={styles.goalC}>c {cPct}%</span>
-        <span className={styles.goalSep}>·</span>
-        <span className={styles.goalE}>e {ePct}%</span>
-      </div>
+
+      {count === 0 ? (
+        <div className={styles.pastPickerEmpty}>
+          <div className={styles.pastPickerDash}>—</div>
+          <div className={styles.pastPickerEmptyTitle}>No quarters recorded yet</div>
+          <div className={styles.pastPickerEmptyHint}>
+            Your first review lands the day {currentQuarter.replace('-Q', ' Q')} closes. Until then
+            there&apos;s nothing to look back on — but Lenna can help you set the targets she&apos;ll measure against.
+          </div>
+        </div>
+      ) : (
+        <div className={styles.pastPickerList}>
+          {pastQuarters.map((pq, i) => {
+            const [yr, qn] = pq.quarter.split('-Q');
+            const deltaPositive = (pq.olDelta ?? 0) >= 0;
+            const deltaText = pq.olDelta == null
+              ? 'baseline'
+              : `${deltaPositive ? '▲' : '▼'} ${Math.abs(pq.olDelta)}`;
+            const deltaColor = pq.olDelta == null
+              ? 'var(--ink-faint)'
+              : deltaPositive ? 'var(--positive)' : 'var(--attention)';
+            return (
+              <div
+                key={pq.quarter}
+                className={`${styles.pastPickerRow} ${i === 0 ? styles.pastPickerRowHighlight : ''}`}
+              >
+                <div className={styles.pastPickerRowQ}>
+                  <div className={styles.pastPickerRowLabel}>Q{qn}</div>
+                  <div className={styles.pastPickerRowYear}>{yr}</div>
+                </div>
+                <div className={styles.pastPickerRowCenter}>
+                  <div className={styles.pastPickerRowScoreLine}>
+                    <span className={styles.pastPickerScore}>
+                      {pq.olLast != null ? Math.round(pq.olLast) : '—'}
+                    </span>
+                    <span className={styles.pastPickerDelta} style={{ color: deltaColor }}>
+                      {deltaText}
+                    </span>
+                  </div>
+                  {pq.summary && (
+                    <div className={styles.pastPickerSummary}>{pq.summary}</div>
+                  )}
+                </div>
+                <button
+                  className={`${styles.pastPickerReviewBtn} ${i === 0 ? styles.pastPickerReviewBtnPrimary : ''}`}
+                  onClick={() => { onSelect(pq.quarter); }}
+                >
+                  Review
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Shell ────────────────────────────────────────────────────────────────────
+// ── Vector pace row ───────────────────────────────────────────────────────────
+
+function VectorPaceRow({ row, isLast }: { row: VectorRow; isLast: boolean }) {
+  const cPct     = Math.round(row.avgC * 100);
+  const ePct     = Math.round(row.avgE * 100);
+  const tickBehind = row.gap < -0.05;
+  const status   = rowStatus(row);
+
+  return (
+    <div className={`${styles.vRow} ${isLast ? styles.vRowLast : ''}`}>
+      <div className={styles.vRowName}>
+        <span className={styles.vRowSwatch} style={{ background: row.color }} />
+        <span className={styles.vRowLabel}>{row.label}</span>
+      </div>
+
+      <div className={styles.vRowValues}>
+        {row.hasGoals ? (
+          <span className={styles.vRowValText}>{cPct}%</span>
+        ) : (
+          <span className={styles.vRowValEmpty}>—</span>
+        )}
+      </div>
+
+      <div className={styles.vRowBar}>
+        {row.hasGoals && (
+          <div
+            className={styles.vRowFill}
+            style={{ width: `${Math.min(cPct, 100)}%`, background: row.color }}
+          />
+        )}
+        {row.hasGoals && (
+          <div
+            className={styles.vRowTick}
+            style={{
+              left: `${Math.min(ePct, 100)}%`,
+              background: tickBehind ? 'var(--attention)' : 'var(--ink-soft)',
+            }}
+          />
+        )}
+      </div>
+
+      <div className={`${styles.vRowStatus} ${status.cls}`}>{status.text}</div>
+    </div>
+  );
+}
+
+// ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function QuarterShell({
-  user, vectors, goalCards, scoreTrend, latestScore,
-  quarter, tau, quarterStart, quarterEnd, daysLeft,
-  reviewPending, closedQuarter,
+  user, vectors, goalCards, latestScore,
+  quarter, currentQuarter, prevQuarter, nextQuarter,
+  tau, quarterStart, quarterEnd, quarterIsoStart,
+  daysLeft, hasData, reviewPending, closedQuarter, pastQuarters,
 }: Props) {
-  const [qYear, qNum]  = quarter.split('-Q');
-  const quarterLabel   = `Q${qNum} ${qYear}`;
-  const firstName      = user.name.trim().split(' ')[0] || 'you';
+  const router = useRouter();
 
-  const [inputText,  setInputText]  = useState('');
-  const [messages,   setMessages]   = useState<ChatMessage[]>([]);
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [lastLogged, setLastLogged] = useState<{ vectorId: string; summary: string; progressDelta: number } | null>(null);
-  const [lennaOpen,  setLennaOpen]  = useState(false);
-  const [lennaWidth, setLennaWidth] = useState(260);
-  const [pending,    startTransition] = useTransition();
-  const chatEndRef  = useRef<HTMLDivElement>(null);
-  const dragging    = useRef(false);
+  const [notifDismissed, setNotifDismissed] = useState(false);
+  const [pastOpen,       setPastOpen]       = useState(false);
 
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      setLennaWidth(Math.min(Math.max(window.innerWidth - e.clientX, 180), 520));
-    }
-    function onUp() {
-      if (!dragging.current) return;
-      dragging.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup',   onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, []);
+  const isCurrentQ  = quarter === currentQuarter;
+  const label       = quarterLabel(quarter);
+  const olValue     = latestScore ? Math.round(latestScore.operatingLevel) : null;
+  const [axis0, axisMid, axis1] = axisLabels(quarter, quarterStart, quarterEnd);
+  const tauPct      = Math.round(tau * 100);
+  const vRows       = buildVectorRows(vectors, goalCards);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
-
-  function handleSubmit() {
-    const text = inputText.trim();
-    if (!text || pending) return;
-    setInputError(null);
-    const prev = [...messages];
-    setMessages(m => [...m, { role: 'user', text }]);
-    setInputText('');
-    startTransition(async () => {
-      const res = await sendToLenna(text, prev, lastLogged ?? undefined);
-      if (res.error) { setInputError(res.error); setMessages(m => m.slice(0, -1)); }
-      else if (res.reply) {
-        setMessages(m => [...m, { role: 'lenna', text: res.reply! }]);
-        if (res.justLogged) setLastLogged(res.justLogged);
-      }
-    });
+  function navigateTo(q: string) {
+    if (q === currentQuarter) router.push('/quarter');
+    else router.push(`/quarter?q=${q}`);
   }
+
+  const showNotif = isCurrentQ && reviewPending && !!closedQuarter && !notifDismissed;
 
   return (
     <div className={styles.app}>
@@ -192,173 +284,125 @@ export default function QuarterShell({
       </aside>
 
       {/* ── Main ── */}
-      <main className={styles.content}>
+      <main className={styles.main}>
 
-        {/* Header */}
-        <div className={styles.contentHeader}>
-          <div>
-            <div className={styles.headerTitle}>{quarterLabel}</div>
-            <div className={styles.headerDate}>{quarterStart} → {quarterEnd}</div>
-          </div>
-          <div className={styles.headerScore}>
-            <div className={`${styles.scoreNum} ${latestScore ? styles.scoreNumSet : ''}`}>
-              {latestScore ? Math.round(latestScore.operatingLevel) : '—'}
-            </div>
-            <div className={styles.scoreLabel}>operating level</div>
-          </div>
-        </div>
-
-        {/* Review due banner */}
-        {reviewPending && closedQuarter && (() => {
+        {/* Rollover notification strip */}
+        {showNotif && closedQuarter && (() => {
           const [cqYear, cqNum] = closedQuarter.split('-Q');
           return (
-            <Link href="/quarter/review" className={styles.reviewBanner}>
-              <span className={styles.reviewBannerText}>
-                Q{cqNum} {cqYear} review is due
-              </span>
-              <span className={styles.reviewBannerCta}>Start review →</span>
-            </Link>
+            <div className={styles.notif}>
+              <div className={styles.notifLeft}>
+                <div className={styles.notifAvatar}>L</div>
+                <div>
+                  <span className={styles.notifTextMain}>Q{cqNum} is complete — I pulled your review together. </span>
+                  <span className={styles.notifTextSoft}>Trends, wins, and what I&apos;d carry forward.</span>
+                </div>
+              </div>
+              <div className={styles.notifRight}>
+                <Link href="/quarter/review" className={styles.notifBtn}>
+                  Review Q{cqNum} →
+                </Link>
+                <button className={styles.notifDismiss} onClick={() => setNotifDismissed(true)}>✕</button>
+              </div>
+            </div>
           );
         })()}
 
-        {/* On-demand replan link */}
-        <Link href="/quarter/replan" className={styles.replanLink}>
-          Revise this quarter →
-        </Link>
-
-        {/* Row 1: τ bar + OL sparkline */}
-        <div className={styles.row}>
-          <div className={`${styles.island} ${styles.tauIsland}`}>
-            <div className={styles.islandLabel}>Quarter progress</div>
-            <div className={styles.tauTrack}>
-              <div className={styles.tauFill} style={{ width: `${tau * 100}%` }} />
-            </div>
-            <div className={styles.tauMeta}>
-              <span className={styles.tauPct}>{Math.round(tau * 100)}%</span>
-              <span className={styles.tauDays}>{daysLeft} days left</span>
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.headerLeft}>
+            <div className={styles.headerTitle}>{label}</div>
+            <div className={styles.headerSub}>
+              {olValue != null ? `operating level ${olValue} · ` : ''}{quarterStart}–{quarterEnd}
             </div>
           </div>
-
-          <div className={`${styles.island} ${styles.olIsland}`}>
-            <div className={styles.islandLabel}>Trend</div>
-            <Sparkline points={scoreTrend} />
+          <div className={styles.headerRight}>
+            <button
+              className={styles.headerNavBtn}
+              onClick={() => navigateTo(prevQuarter)}
+              title={prevQuarter}
+            >‹</button>
+            {nextQuarter && (
+              <button
+                className={styles.headerNavBtn}
+                onClick={() => navigateTo(nextQuarter)}
+                title={nextQuarter}
+              >›</button>
+            )}
+            <div className={styles.headerDivider} />
+            <div style={{ position: 'relative' }}>
+              <button
+                className={styles.headerPastBtn}
+                onClick={() => setPastOpen(o => !o)}
+              >
+                Past quarters <span style={{ fontSize: '8px' }}>▾</span>
+              </button>
+              {pastOpen && (
+                <PastQuartersPicker
+                  onClose={() => setPastOpen(false)}
+                  currentQuarter={currentQuarter}
+                  onSelect={q => { navigateTo(q); setPastOpen(false); }}
+                  pastQuarters={pastQuarters}
+                />
+              )}
+            </div>
+            {isCurrentQ && (
+              <Link href="/quarter/replan" className={styles.headerRevBtn}>
+                Revision →
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Vector sections */}
-        <div className={styles.vectorSections}>
-          {vectors.map(v => {
-            const vGoals = goalCards.filter(g => g.vectorId === v.id);
-            const avgGap = vGoals.length > 0
-              ? vGoals.reduce((s, g) => s + g.gap, 0) / vGoals.length
-              : null;
-            const ahead = avgGap !== null && avgGap >= 0;
+        {/* Body */}
+        <div className={styles.body}>
 
-            return (
-              <div key={v.id} className={styles.vectorSection}>
-                <div className={styles.vectorSectionHead}>
-                  <span className={styles.vdot} style={{ background: v.color }} />
-                  <span className={styles.vsectionLabel}>{v.label}</span>
-                  {avgGap !== null && (
-                    <span className={`${styles.vecGapBadge} ${ahead ? styles.vecGapAhead : styles.vecGapBehind}`}>
-                      {ahead ? '+' : '−'}{Math.round(Math.abs(avgGap) * 100)}pp
-                    </span>
-                  )}
+          {/* Historical empty state */}
+          {!isCurrentQ && !hasData ? (
+            <div className={styles.emptyHistory}>
+              <div className={styles.emptyHistoryTitle}>Nothing recorded for {label}</div>
+              <div className={styles.emptyHistoryHint}>No goals or data were logged this quarter.</div>
+            </div>
+          ) : (
+            <>
+              {/* Quarter progress */}
+              <div className={styles.progressSection}>
+                <div className={styles.progressLabelRow}>
+                  <span className={styles.progressLabel}>Quarter progress</span>
+                  <span className={styles.progressRight}>
+                    <span className={styles.progressPct}>{tauPct}%</span>
+                    {isCurrentQ && (
+                      <span className={styles.progressDays}>· {daysLeft} days left</span>
+                    )}
+                  </span>
                 </div>
-                {vGoals.length === 0 ? (
-                  <div className={styles.noGoal}>No active goal this quarter</div>
-                ) : (
-                  vGoals.map(g => <GoalRow key={g.id} g={g} tau={tau} />)
-                )}
+                <div className={styles.progressTrack}>
+                  <div className={styles.progressFill} style={{ width: `${tauPct}%` }} />
+                  <div className={styles.progressKnob} style={{ left: `${tauPct}%` }} />
+                </div>
+                <div className={styles.progressAxis}>
+                  <span>{axis0}</span>
+                  <span>{axisMid}</span>
+                  <span>{axis1}</span>
+                </div>
               </div>
-            );
-          })}
-        </div>
 
+              {/* Vectors */}
+              <div className={styles.vectorsSection}>
+                <div className={styles.vectorsSectionHead}>
+                  <span className={styles.vectorsSectionTitle}>Vectors</span>
+                  <span className={styles.vectorsSectionHint}>now / expected · pace tick = where you should be today</span>
+                </div>
+                <div className={styles.vectorRows}>
+                  {vRows.map((row, i) => (
+                    <VectorPaceRow key={row.id} row={row} isLast={i === vRows.length - 1} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </main>
-
-      {/* ── Resize handle ── */}
-      <div
-        className={styles.resizeHandle}
-        onMouseDown={e => {
-          e.preventDefault();
-          dragging.current = true;
-          document.body.style.cursor      = 'col-resize';
-          document.body.style.userSelect  = 'none';
-        }}
-      >
-        <div className={styles.handleDots}>
-          <div className={styles.handleDot} />
-          <div className={styles.handleDot} />
-          <div className={styles.handleDot} />
-        </div>
-      </div>
-
-      {/* ── Lenna ── */}
-      {lennaOpen ? (
-        <aside className={styles.assistant} style={{ width: lennaWidth }}>
-          <div className={styles.assistantHeader}>
-            <span className={styles.assistantTitle}>Lenna</span>
-            <button className={styles.assistantCollapse} onClick={() => setLennaOpen(false)} title="Close Lenna">←</button>
-          </div>
-
-          <div className={styles.assistantBody}>
-            {messages.length === 0 ? (
-              <div className={styles.chatLenna}>
-                <div className={styles.chatLennaLabel}>lenna</div>
-                <div className={styles.chatLennaText}>
-                  {`${quarterLabel} overview. What do you want to dig into, ${firstName}?`}
-                </div>
-              </div>
-            ) : (
-              messages.map((m, i) =>
-                m.role === 'user' ? (
-                  <div key={i} className={styles.chatUser}>{m.text}</div>
-                ) : (
-                  <div key={i} className={styles.chatLenna}>
-                    <div className={styles.chatLennaLabel}>lenna</div>
-                    <LennaText text={m.text} className={styles.chatLennaText} />
-                  </div>
-                )
-              )
-            )}
-            {pending && (
-              <div className={styles.chatLenna}>
-                <div className={styles.chatLennaLabel}>lenna</div>
-                <div className={`${styles.chatLennaText} ${styles.chatPending}`}>…</div>
-              </div>
-            )}
-            {inputError && (
-              <div style={{ fontSize: 11, color: 'var(--attention)', fontFamily: 'var(--font-mono)', padding: '4px 0' }}>
-                {inputError}
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className={styles.assistantInputWrap}>
-            <textarea
-              className={styles.assistantInput}
-              placeholder="Ask about this quarter…"
-              rows={2}
-              value={inputText}
-              disabled={pending}
-              onChange={e => setInputText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-              }}
-            />
-            {inputText.trim() && !pending && (
-              <div className={styles.assistantInputHint}>↵ send · shift+↵ newline</div>
-            )}
-          </div>
-        </aside>
-      ) : (
-        <div className={styles.lennaStrip} onClick={() => setLennaOpen(true)} title="Open Lenna">
-          <span className={styles.lennaStripLabel}>Lenna →</span>
-        </div>
-      )}
-
     </div>
   );
 }

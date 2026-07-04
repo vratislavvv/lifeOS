@@ -10,6 +10,7 @@ export const user = sqliteTable("user", {
   timeFormat:    text("time_format", { enum: ["24h", "12h"] }).notNull().default("24h"),
   lennaTone:     text("lenna_tone", { enum: ["warm", "neutral", "direct"] }).notNull().default("warm"),
   lennaAutonomy: text("lenna_autonomy", { enum: ["suggest", "draft", "act"] }).notNull().default("draft"),
+  dateOfBirth:   text("date_of_birth"),                    // YYYY-MM-DD; used by Lenna to frame anchor time horizons by age
   setupDone:     integer("setup_done", { mode: "boolean" }).notNull().default(false),
   createdAt:     integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
@@ -47,6 +48,11 @@ export const goals = sqliteTable("goals", {
   // window — seeded from quarter bounds on creation; explicit so mid-quarter goals have correct τ
   startDate:      text("start_date"),                      // YYYY-MM-DD
   endDate:        text("end_date"),                        // YYYY-MM-DD
+  // trackability — tier drives how progress is obtained and whether the UI shows an estimate band
+  trackabilityTier:    text("trackability_tier", { enum: ["instrumented", "proxy", "checkpoint", "attested"] }),
+  dataSource:          text("data_source"),                // e.g. "strava", "github", "bank", "manual", "coach"
+  proxyModel:          text("proxy_model"),                // e.g. "riegel"; proxy tier only; carries its own confidence
+  attestationCadence:  text("attestation_cadence"),        // e.g. "event", "monthly"; checkpoint/attested only
   // scoring weight — default 1 reproduces equal-weighting across goals in a vector
   weight:         real("weight").notNull().default(1),
   // metric goals

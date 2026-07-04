@@ -148,7 +148,7 @@ Rules:
   ];
 
   let response = await getAI().messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 512,
     system,
     messages,
@@ -169,7 +169,7 @@ Rules:
     messages.push({ role: 'user', content: toolResults });
 
     response = await getAI().messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 512,
       system,
       messages,

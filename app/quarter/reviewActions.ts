@@ -62,7 +62,7 @@ export async function reviewSessionTurn(
         closedQuarter,
         nextQuarter,
         vectors:            selectedVectors.filter(v => !removedVectors.includes(v.id)),
-        draftGoals:         currentDraftGoals.map(g => ({ vectorId: g.vectorId, description: g.description, type: g.type })),
+        draftGoals:         currentDraftGoals.map(g => ({ id: g.id, vectorId: g.vectorId, description: g.description, type: g.type })),
         skippedGoalVectors,
         removedVectors,
         report,
@@ -77,38 +77,47 @@ export async function reviewSessionTurn(
         }
 
         if (toolName === 'propose_goal') {
-          const { vectorId, description, type, startValue, targetValue, cadencePerWeek, paceShape } =
-            input as {
-              vectorId: string; description: string; type: string;
-              startValue?: number; targetValue?: number; cadencePerWeek?: number;
-              paceShape?: string; rationale: string;
-            };
+          const {
+            vectorId, description, type, trackabilityTier, dataSource, proxyModel,
+            attestationCadence, startValue, targetValue, cadencePerWeek, paceShape,
+          } = input as {
+            vectorId: string; description: string; type: string;
+            trackabilityTier?: string; dataSource?: string; proxyModel?: string; attestationCadence?: string;
+            startValue?: number; targetValue?: number; cadencePerWeek?: number; paceShape?: string;
+          };
 
           const validTypes = ['milestone', 'metric', 'consistency'];
           if (!validTypes.includes(type)) return `Invalid type "${type}".`;
 
           const { start: startDate, end: endDate } = quarterBounds(nextQuarter);
 
-          const existing = db.select().from(goals)
-            .where(and(eq(goals.quarter, nextQuarter), eq(goals.vectorId, vectorId), eq(goals.status, 'draft')))
-            .get();
-          if (existing) db.delete(goals).where(eq(goals.id, existing.id)).run();
-
           db.insert(goals).values({
             vectorId,
-            quarter:        nextQuarter,
+            quarter:             nextQuarter,
             description,
-            type:           type as 'milestone' | 'metric' | 'consistency',
-            status:         'draft',
-            paceShape:      (paceShape ?? 'linear') as 'linear' | 'easeIn' | 'easeOut' | 'sCurve',
+            type:                type as 'milestone' | 'metric' | 'consistency',
+            status:              'draft',
+            trackabilityTier:    (trackabilityTier ?? null) as 'instrumented' | 'proxy' | 'checkpoint' | 'attested' | null,
+            dataSource:          dataSource         ?? null,
+            proxyModel:          proxyModel         ?? null,
+            attestationCadence:  attestationCadence ?? null,
+            paceShape:           (paceShape ?? 'linear') as 'linear' | 'easeIn' | 'easeOut' | 'sCurve',
             startDate,
             endDate,
-            startValue:     startValue ?? null,
-            targetValue:    targetValue ?? null,
-            cadencePerWeek: cadencePerWeek ?? null,
+            startValue:          startValue     ?? null,
+            targetValue:         targetValue    ?? null,
+            cadencePerWeek:      cadencePerWeek ?? null,
           }).run();
 
-          return `Goal for ${vectorId} drafted: "${description}" (${type})`;
+          return `Goal for ${vectorId} drafted: "${description}" (${type}, ${trackabilityTier ?? 'unclassified'})`;
+        }
+
+        if (toolName === 'remove_draft_goal') {
+          const { goalId } = input as { goalId: string };
+          const goal = db.select().from(goals).where(and(eq(goals.id, goalId), eq(goals.status, 'draft'))).get();
+          if (!goal) return 'Draft goal not found.';
+          db.delete(goals).where(eq(goals.id, goalId)).run();
+          return `Draft goal "${goal.description}" removed.`;
         }
 
         if (toolName === 'skip_goal') {

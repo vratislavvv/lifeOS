@@ -77,8 +77,8 @@ describe('completion — milestone', () => {
 
   it('sums delta × confidence, capped at MAX_INPUT_DELTA', () => {
     const inputs = [
-      { kind: 'milestone_delta', progressDelta: 0.2, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-01' },
-      { kind: 'milestone_delta', progressDelta: 0.1, value: null, occurredCount: null, confidence: 0.8, date: '2026-05-02' },
+      { kind: 'milestone_delta', progressDelta: 0.2, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-01' },
+      { kind: 'milestone_delta', progressDelta: 0.1, value: null, occurredCount: null, durationMin: null, confidence: 0.8, date: '2026-05-02' },
     ];
     const c = computeCompletion(base, inputs, '2026-05-20');
     expect(c).toBeCloseTo(0.2 * 1.0 + 0.1 * 0.8, 5);
@@ -86,7 +86,7 @@ describe('completion — milestone', () => {
 
   it('caps each delta at MAX_INPUT_DELTA', () => {
     const inputs = [
-      { kind: 'milestone_delta', progressDelta: 0.9, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-01' },
+      { kind: 'milestone_delta', progressDelta: 0.9, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-01' },
     ];
     const c = computeCompletion(base, inputs, '2026-05-20');
     expect(c).toBeCloseTo(MAX_INPUT_DELTA, 5);
@@ -94,17 +94,17 @@ describe('completion — milestone', () => {
 
   it('ignores inputs below CONFIDENCE_FLOOR', () => {
     const inputs = [
-      { kind: 'milestone_delta', progressDelta: 0.5, value: null, occurredCount: null, confidence: CONFIDENCE_FLOOR - 0.01, date: '2026-05-01' },
+      { kind: 'milestone_delta', progressDelta: 0.5, value: null, occurredCount: null, durationMin: null, confidence: CONFIDENCE_FLOOR - 0.01, date: '2026-05-01' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBe(0);
   });
 
   it('clamps total at 1', () => {
     const inputs = [
-      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-01' },
-      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-02' },
-      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-03' },
-      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-04' },
+      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-01' },
+      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-02' },
+      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-03' },
+      { kind: 'milestone_delta', progressDelta: 0.34, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-04' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBe(1);
   });
@@ -112,14 +112,14 @@ describe('completion — milestone', () => {
   it('Spec example: c=0.20 (matches worked test vector)', () => {
     // 20 × delta=0.2 × confidence=0.5 ≈ doesn't map cleanly, so just test that c=0.20
     const inputs = [
-      { kind: 'milestone_delta', progressDelta: 0.2, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-01' },
+      { kind: 'milestone_delta', progressDelta: 0.2, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-01' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBeCloseTo(0.2, 5);
   });
 
   it('accepts null kind (backward compat) with progressDelta', () => {
     const inputs = [
-      { kind: null, progressDelta: 0.1, value: null, occurredCount: null, confidence: 1.0, date: '2026-05-01' },
+      { kind: null, progressDelta: 0.1, value: null, occurredCount: null, durationMin: null, confidence: 1.0, date: '2026-05-01' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBeCloseTo(0.1, 5);
   });
@@ -130,22 +130,22 @@ describe('completion — metric', () => {
 
   it('€12k at 5k→20k = 7000/15000 = 0.4667', () => {
     const inputs = [
-      { kind: 'metric_value', progressDelta: null, value: 12000, occurredCount: null, confidence: 0.9, date: '2026-05-20' },
+      { kind: 'metric_value', progressDelta: null, value: 12000, occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-05-20' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBeCloseTo(7000 / 15000, 4);
   });
 
   it('latest reading wins', () => {
     const inputs = [
-      { kind: 'metric_value', progressDelta: null, value: 8000,  occurredCount: null, confidence: 0.9, date: '2026-05-01' },
-      { kind: 'metric_value', progressDelta: null, value: 12000, occurredCount: null, confidence: 0.9, date: '2026-05-20' },
+      { kind: 'metric_value', progressDelta: null, value: 8000,  occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-05-01' },
+      { kind: 'metric_value', progressDelta: null, value: 12000, occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-05-20' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBeCloseTo(7000 / 15000, 4);
   });
 
   it('clamps c at 1 if over target', () => {
     const inputs = [
-      { kind: 'metric_value', progressDelta: null, value: 25000, occurredCount: null, confidence: 0.9, date: '2026-05-20' },
+      { kind: 'metric_value', progressDelta: null, value: 25000, occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-05-20' },
     ];
     expect(computeCompletion(base, inputs, '2026-05-20')).toBe(1);
   });
@@ -169,7 +169,7 @@ describe('completion — consistency', () => {
       kind: 'consistency_occurrence' as const,
       progressDelta: null,
       value: null,
-      occurredCount: 1,
+      occurredCount: 1, durationMin: null,
       confidence: 0.9,
       date: `2026-04-${String(i + 1).padStart(2, '0')}`,
     }));
@@ -186,7 +186,7 @@ describe('completion — consistency', () => {
       kind: 'consistency_occurrence' as const,
       progressDelta: null,
       value: null,
-      occurredCount: 1,
+      occurredCount: 1, durationMin: null,
       confidence: 1.0,
       date: '2026-04-01',
     }));
@@ -195,7 +195,7 @@ describe('completion — consistency', () => {
 
   it('accepts null kind as occurrence (backward compat)', () => {
     const inputs = [
-      { kind: null, progressDelta: 0.1, value: null, occurredCount: null, confidence: 0.9, date: '2026-04-01' },
+      { kind: null, progressDelta: 0.1, value: null, occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-04-01' },
     ];
     const c = computeCompletion(base, inputs, '2026-04-08');  // 1 week = 4 scheduled
     expect(c).toBeCloseTo(1 / 4, 4);

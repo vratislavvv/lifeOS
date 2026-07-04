@@ -538,7 +538,6 @@
 .dayEmpty { width: 16px; height: 1.5px; border-radius: 1px; background: var(--hairline-strong); }
 
 /* Month grid */
-.monthGridWrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 .weekdayHeader {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -577,52 +576,9 @@
 .monthCell:hover { border-color: var(--hairline-strong); }
 .monthCellOther { background: var(--bg); border-color: rgba(41,39,35,0.06); }
 .monthCellToday { background: var(--surface-sunk); border: 1.5px solid var(--ink-soft); }
-.monthCellSelected { border: 1.5px solid var(--ink); box-shadow: 0 0 0 3px rgba(41,39,35,0.06); }
 .monthNum { font-size: 11px; font-family: var(--font-mono); flex-shrink: 0; }
 .monthCellOther .monthNum { color: var(--ink-faint); }
 .monthCellToday .monthNum { font-weight: 500; }
-.monthDots { display: flex; gap: 3px; margin-top: 1px; }
-.monthDot { width: 5px; height: 5px; border-radius: 50%; }
-
-/* Popup */
-.popup {
-  position: absolute;
-  width: 260px;
-  background: var(--bg);
-  border: 1px solid var(--hairline-strong);
-  border-radius: 10px;
-  box-shadow: 0 12px 34px rgba(41,39,35,0.20);
-  z-index: 10;
-}
-.popupArrow {
-  position: absolute;
-  left: -6px;
-  bottom: 26px;
-  width: 11px;
-  height: 11px;
-  background: var(--bg);
-  border-left: 1px solid var(--hairline-strong);
-  border-bottom: 1px solid var(--hairline-strong);
-  transform: rotate(45deg);
-}
-.popupHead {
-  padding: 11px 13px;
-  border-bottom: 1px solid var(--hairline);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.popupWeekday { font-size: 11px; color: var(--ink-faint); }
-.popupDate { font-size: 14px; font-weight: 500; font-family: var(--font-mono); margin-top: 1px; }
-.popupStatus {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--ink-faint);
-  border: 1px solid var(--hairline);
-  border-radius: 5px;
-  padding: 3px 8px;
-}
-.popupBody { padding: 11px 13px; }
 
 /* === Resize handle === */
 .resizeHandle {
@@ -674,39 +630,6 @@
   overflow-y: auto;
   scroll-behavior: smooth;
 }
-.proposalCard {
-  background: var(--surface-sunk);
-  border-radius: 8px;
-  padding: 12px;
-}
-.proposalType { font-size: 10px; font-weight: 500; color: var(--v-craft); margin-bottom: 5px; }
-.proposalText { font-size: 12px; line-height: 1.55; color: var(--ink); margin-bottom: 10px; }
-.proposalActions { display: flex; gap: 5px; }
-.btnAdd {
-  padding: 4px 10px;
-  border-radius: 5px;
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.1s;
-}
-.btnAdd:hover { opacity: 0.8; }
-.btnEdit {
-  padding: 4px 10px;
-  border-radius: 5px;
-  border: 1px solid var(--hairline-strong);
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-family: var(--font-sans);
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.btnEdit:hover { background: var(--surface); }
 .assistantInputWrap {
   padding: 10px;
   border-top: 1px solid var(--hairline);

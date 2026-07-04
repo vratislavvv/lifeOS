@@ -49,7 +49,6 @@ export default function StepVectors({ data, onChange, onNext, onBack }: StepProp
           );
         })}
       </div>
-      <button type="button" className={styles.addVectorBtn}>+ Add your own</button>
 
       <NavRow onBack={onBack} onNext={onNext} />
     </div>

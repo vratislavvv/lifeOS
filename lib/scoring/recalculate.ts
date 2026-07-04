@@ -72,17 +72,20 @@ export function recalculate(asOf?: string): ScoreResult | CalibrationResult {
 
     const c   = computeCompletion(
       {
-        type:           goal.type as 'milestone' | 'metric' | 'consistency',
-        startDate:      goal.startDate,
-        cadencePerWeek: goal.cadencePerWeek,
-        startValue:     goal.startValue,
-        targetValue:    goal.targetValue,
+        type:             goal.type as 'milestone' | 'metric' | 'consistency',
+        trackabilityTier: goal.trackabilityTier ?? null,
+        proxyModel:       goal.proxyModel       ?? null,
+        startDate:        goal.startDate,
+        cadencePerWeek:   goal.cadencePerWeek,
+        startValue:       goal.startValue,
+        targetValue:      goal.targetValue,
       },
       goalInputs.map(i => ({
         kind:          i.kind,
         progressDelta: i.progressDelta,
         value:         i.value,
         occurredCount: i.occurredCount,
+        durationMin:   i.durationMin,
         confidence:    i.confidence,
         date:          i.date,
       })),
