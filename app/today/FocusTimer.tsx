@@ -13,10 +13,13 @@ const DEFAULT_PRESETS: Preset[] = [
 const R = 36;
 const CIRC = 2 * Math.PI * R;
 const MAX_CUSTOM = 3;
-const LS_KEY = 'lifeos-timer-presets';
+const LS_KEY        = 'lifeos-timer-presets';
+const LS_STATE_KEY  = 'lifeos-timer-state';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 type Phase = 'idle' | 'work' | 'break';
+
+type TimerState = { phase: Phase; remaining: number; presetIdx: number; savedAt: number };
 
 export default function FocusTimer() {
   const [customPresets, setCustomPresets] = useState<Preset[]>([]);
@@ -28,11 +31,21 @@ export default function FocusTimer() {
   const [newBreak, setNewBreak] = useState('');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load custom presets from localStorage
+  // Load custom presets and restore running timer state from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) setCustomPresets(JSON.parse(raw));
+    } catch {}
+    try {
+      const st: TimerState = JSON.parse(localStorage.getItem(LS_STATE_KEY) ?? 'null');
+      if (st && st.phase !== 'idle') {
+        const elapsed = Math.floor((Date.now() - st.savedAt) / 1000);
+        const adj = Math.max(st.remaining - elapsed, 0);
+        setPresetIdx(st.presetIdx);
+        setPhase(adj > 0 ? st.phase : 'idle');
+        setRemaining(adj);
+      }
     } catch {}
   }, []);
 
@@ -40,6 +53,16 @@ export default function FocusTimer() {
   useEffect(() => {
     localStorage.setItem(LS_KEY, JSON.stringify(customPresets));
   }, [customPresets]);
+
+  // Persist timer state whenever phase/remaining/presetIdx changes
+  useEffect(() => {
+    if (phase === 'idle') {
+      localStorage.removeItem(LS_STATE_KEY);
+    } else {
+      const st: TimerState = { phase, remaining, presetIdx, savedAt: Date.now() };
+      localStorage.setItem(LS_STATE_KEY, JSON.stringify(st));
+    }
+  }, [phase, remaining, presetIdx]);
 
   const allPresets = [...DEFAULT_PRESETS, ...customPresets];
   const preset = allPresets[presetIdx] ?? DEFAULT_PRESETS[0];

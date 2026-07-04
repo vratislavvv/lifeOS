@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { LennaText } from '@/lib/renderMarkdown';
 import { sendToLenna } from '../today/actions';
-import { toggleTask, deleteTask } from '../today/taskActions';
+import { toggleTask, deleteTask, addTask } from '../today/taskActions';
 import type { ChatMessage } from '@/lib/llm/chat';
 import type { vectors, tasks, taskGroups, user } from '@/lib/db/schema';
 import styles from './tasks.module.css';
@@ -47,6 +47,7 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
   const [inputError, setInputError]           = useState<string | null>(null);
   const [pending, startTransition]            = useTransition();
   const [taskPending, startTaskTransition]    = useTransition();
+  const [quickAdd, setQuickAdd]               = useState<Record<string, string>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
   const firstName  = user.name.trim().split(' ')[0] || 'you';
 
@@ -92,13 +93,13 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
           </div>
         </div>
         <div className={styles.sidebarFooter}>
-          <div className={styles.sidebarFooterLink}>
+          <Link href="/settings" className={styles.sidebarFooterLink}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.75, marginRight: 7 }}>
               <line x1="4" y1="8" x2="20" y2="8" /><line x1="4" y1="16" x2="20" y2="16" />
               <circle cx="9" cy="8" r="2.3" fill="var(--bg)" /><circle cx="15" cy="16" r="2.3" fill="var(--bg)" />
             </svg>
             Settings
-          </div>
+          </Link>
         </div>
       </aside>
 
@@ -139,49 +140,74 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
                   <span className={styles.groupName}>{group.name}</span>
                   <span className={styles.groupCount}>{groupTasks.length}</span>
                 </div>
-                {groupTasks.length === 0 ? (
-                  <div className={styles.groupEmpty}>No tasks — ask Lenna to add one.</div>
-                ) : (
-                  groupTasks.map(task => {
-                    const due = dueDateLabel(task.dueDate);
-                    const isToday = task.date === today;
-                    return (
-                      <div
-                        key={task.id}
-                        className={[
-                          styles.taskRow,
-                          priorityClass(task.important, task.urgent, styles as Record<string, string>),
-                          taskPending ? styles.taskPending : '',
-                        ].join(' ')}
-                      >
-                        <button
-                          className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
-                          onClick={() => startTaskTransition(() => toggleTask(task.id))}
-                          title={task.done ? 'Mark undone' : 'Mark done'}
-                        />
-                        <div className={styles.taskBody}>
-                          <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
-                            {task.title}
-                          </span>
-                          <div className={styles.taskMeta}>
-                            {isToday && <span className={styles.taskDateBadge}>today</span>}
-                            {due && (
-                              <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
-                                {due.text}
-                              </span>
-                            )}
-                          </div>
+                {groupTasks.length === 0 && quickAdd[group.id] === undefined && (
+                  <div className={styles.groupEmpty}>No tasks yet.</div>
+                )}
+                {groupTasks.map(task => {
+                  const due = dueDateLabel(task.dueDate);
+                  const isToday = task.date === today;
+                  return (
+                    <div
+                      key={task.id}
+                      className={[
+                        styles.taskRow,
+                        priorityClass(task.important, task.urgent, styles as Record<string, string>),
+                        taskPending ? styles.taskPending : '',
+                      ].join(' ')}
+                    >
+                      <button
+                        className={`${styles.taskCheck} ${task.done ? styles.taskCheckDone : ''}`}
+                        onClick={() => startTaskTransition(() => toggleTask(task.id))}
+                        title={task.done ? 'Mark undone' : 'Mark done'}
+                      />
+                      <div className={styles.taskBody}>
+                        <span className={`${styles.taskTitle} ${task.done ? styles.taskDone : ''}`}>
+                          {task.title}
+                        </span>
+                        <div className={styles.taskMeta}>
+                          {isToday && <span className={styles.taskDateBadge}>today</span>}
+                          {due && (
+                            <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
+                              {due.text}
+                            </span>
+                          )}
                         </div>
-                        <button
-                          className={styles.taskDelete}
-                          onClick={() => startTaskTransition(() => deleteTask(task.id))}
-                          title="Delete"
-                        >
-                          ×
-                        </button>
                       </div>
-                    );
-                  })
+                      <button
+                        className={styles.taskDelete}
+                        onClick={() => startTaskTransition(() => deleteTask(task.id))}
+                        title="Delete"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+                {quickAdd[group.id] !== undefined ? (
+                  <div className={styles.quickAddRow}>
+                    <input
+                      autoFocus
+                      className={styles.quickAddInput}
+                      placeholder="Task name…"
+                      value={quickAdd[group.id]}
+                      onChange={e => setQuickAdd(q => ({ ...q, [group.id]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          startTaskTransition(() => addTask(quickAdd[group.id], group.id, today));
+                          setQuickAdd(q => { const n = { ...q }; delete n[group.id]; return n; });
+                        }
+                        if (e.key === 'Escape') setQuickAdd(q => { const n = { ...q }; delete n[group.id]; return n; });
+                      }}
+                      onBlur={() => {
+                        if (!quickAdd[group.id]?.trim()) setQuickAdd(q => { const n = { ...q }; delete n[group.id]; return n; });
+                      }}
+                    />
+                    <span className={styles.quickAddHint}>↵ add · esc cancel</span>
+                  </div>
+                ) : (
+                  <button className={styles.quickAddBtn} onClick={() => setQuickAdd(q => ({ ...q, [group.id]: '' }))}>
+                    + Add task
+                  </button>
                 )}
               </div>
             );

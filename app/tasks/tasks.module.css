@@ -313,3 +313,43 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.35; }
 }
+
+/* === Quick-add === */
+.quickAddBtn {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 6px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  text-align: left;
+}
+.quickAddBtn:hover { color: var(--ink-soft); border-color: var(--ink-soft); }
+.quickAddRow {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.quickAddInput {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  outline: none;
+}
+.quickAddInput:focus { border-color: var(--ink-soft); }
+.quickAddHint {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  padding-left: 2px;
+}
