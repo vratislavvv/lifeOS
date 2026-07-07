@@ -81,14 +81,25 @@ function metricCompletion(
   const { startValue: s, targetValue: t } = goal;
   if (s == null || t == null || t === s) return 0;
 
-  // Latest metric_value reading (most recent date, then highest confidence)
+  // Snapshot model: use the latest explicit metric_value reading
   const readings = inputs
     .filter(i => i.kind === 'metric_value' && i.value != null)
     .sort((a, b) => b.date.localeCompare(a.date) || (b.confidence ?? 0) - (a.confidence ?? 0));
 
-  if (readings.length === 0) return 0;
-  const currentValue = readings[0].value!;
-  return Math.min(Math.max((currentValue - s) / (t - s), 0), 1);
+  if (readings.length > 0) {
+    return Math.min(Math.max((readings[0].value! - s) / (t - s), 0), 1);
+  }
+
+  // Count model fallback: accumulate consistency_occurrence inputs toward the target.
+  // Handles "complete N sessions" metric goals logged one session at a time.
+  const occurrences = inputs
+    .filter(i => i.kind === 'consistency_occurrence')
+    .reduce((sum, i) => sum + (i.occurredCount ?? 1), 0);
+  if (occurrences > 0) {
+    return Math.min(Math.max(occurrences / (t - s), 0), 1);
+  }
+
+  return 0;
 }
 
 function consistencyCompletion(

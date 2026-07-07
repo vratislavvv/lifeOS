@@ -90,11 +90,6 @@ export async function chatWithLenna(
   previousMessages: ChatMessage[],
   onToolCall?: ToolHandler
 ): Promise<string> {
-  const kindForType = (type: string) =>
-    type === 'consistency' ? 'consistency_occurrence'
-    : type === 'metric'    ? 'metric_value'
-    : 'milestone_delta';
-
   const vectorLines = context.vectors.map(v => {
     const gap = context.vectorBreakdown[v.id];
     const status = gap !== undefined
@@ -103,8 +98,10 @@ export async function chatWithLenna(
     const vGoals = context.goals.filter(g => g.vectorId === v.id);
     const goalParts = vGoals.map(goal => {
       const snap = context.goalSnapshots?.find(s => s.id === goal.id);
-      let part = `goal[${goal.id}]: "${goal.description}" (${goal.type}, kind=${kindForType(goal.type)}`;
-      if (goal.type === 'consistency' && goal.cadencePerWeek != null) part += `, ${goal.cadencePerWeek}×/week`;
+      let part = `goal[${goal.id}]: "${goal.description}" (${goal.type}`;
+      if (goal.type === 'consistency' && goal.cadencePerWeek != null) part += `, ${goal.cadencePerWeek}×/week, kind=consistency_occurrence`;
+      if (goal.type === 'milestone') part += `, kind=milestone_delta`;
+      if (goal.type === 'metric') part += `, kind=metric_value (snapshot) OR consistency_occurrence (if logging a session/event)`;
       if (snap) part += `, ${snap.c}% done / ${snap.e}% expected`;
       part += ')';
       return part;
