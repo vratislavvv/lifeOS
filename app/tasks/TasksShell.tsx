@@ -2,12 +2,12 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { LennaText } from '@/lib/renderMarkdown';
 import { sendToLenna } from '../today/actions';
 import { toggleTask, deleteTask, addTask } from '../today/taskActions';
 import type { ChatMessage } from '@/lib/llm/chat';
 import type { vectors, tasks, taskGroups, user } from '@/lib/db/schema';
 import styles from './tasks.module.css';
+import LennaPanel from '@/components/LennaPanel';
 
 type User      = typeof user.$inferSelect;
 type Vector    = typeof vectors.$inferSelect;
@@ -219,54 +219,16 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
         </div>
       </div>
 
-      {/* ── Lenna rail ── */}
-      <aside className={styles.rail}>
-        <div className={styles.railHeader}>
-          <span className={styles.railAvatar}>L</span>
-          <span className={styles.railName}>Lenna</span>
-        </div>
-
-        <div className={styles.railBody}>
-          {messages.length === 0 && (
-            <div className={styles.railMsg}>
-              <div className={styles.railMsgText}>
-                What do you want to work on? I can add tasks, create groups, or mark things done.
-              </div>
-            </div>
-          )}
-          {messages.map((m, i) =>
-            m.role === 'user' ? (
-              <div key={i} className={styles.railMsgUser}>{m.text}</div>
-            ) : (
-              <div key={i} className={styles.railMsg}>
-                <LennaText text={m.text} className={styles.railMsgText} />
-              </div>
-            )
-          )}
-          {pending && (
-            <div className={styles.railMsg}>
-              <div className={styles.railMsgPending}>…</div>
-            </div>
-          )}
-          {inputError && <div className={styles.railError}>{inputError}</div>}
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className={styles.railCompose}>
-          <textarea
-            className={styles.railInput}
-            placeholder="Ask Lenna…"
-            rows={2}
-            value={inputText}
-            disabled={pending}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
-          />
-          {inputText.trim() && !pending && (
-            <div className={styles.railInputHint}>↵ send · shift+↵ newline</div>
-          )}
-        </div>
-      </aside>
+      <LennaPanel
+        messages={messages}
+        inputText={inputText}
+        onInputChange={setInputText}
+        onSubmit={handleSubmit}
+        pending={pending}
+        error={inputError}
+        placeholder="Add tasks, ask about your work…"
+        chatEndRef={chatEndRef}
+      />
 
     </div>
   );

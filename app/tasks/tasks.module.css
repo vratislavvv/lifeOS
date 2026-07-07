@@ -33,8 +33,26 @@
   font-weight: 500;
   color: var(--ink);
 }
-.navTree { margin-left: 7px; position: relative; }
+.navTree { margin-left: 7px; position: relative; flex: 1; }
+.navTree::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 143px;
+  width: 1px;
+  background: var(--hairline);
+}
 .navItem { position: relative; padding-left: 13px; margin-bottom: 2px; }
+.navItem::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15px;
+  width: 11px;
+  height: 1px;
+  background: var(--hairline);
+}
 .navLink {
   height: 30px;
   display: flex;

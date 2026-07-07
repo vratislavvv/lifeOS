@@ -1,0 +1,155 @@
+/* === Resize handle === */
+.resizeHandle {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--surface-sunk);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  border-left: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
+}
+.handleDots { display: flex; flex-direction: column; gap: 3px; }
+.handleDot  { width: 2px; height: 2px; border-radius: 50%; background: var(--ink-faint); }
+
+/* === Panel === */
+.panel {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--hairline);
+}
+
+.header {
+  padding: 13px 12px 11px;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.title { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+.collapseBtn {
+  font-size: 10px;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: none;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.collapseBtn:hover { color: var(--ink-soft); border-color: var(--hairline-strong); }
+
+.body {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+/* === Messages === */
+.userMsg {
+  background: var(--surface-sunk);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-align: right;
+  align-self: flex-end;
+  max-width: 90%;
+  margin-left: auto;
+}
+.lennaMsg { padding: 2px 0; }
+.lennaMsgLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.lennaMsgText {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.pending {
+  color: var(--ink-faint);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.error {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--attention);
+  padding: 4px 0;
+}
+
+/* === Input === */
+.inputWrap {
+  padding: 10px;
+  border-top: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.input {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--ink-faint);
+  min-height: 52px;
+  width: 100%;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.input:focus { border-color: var(--hairline-strong); color: var(--ink); }
+.inputHint {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* === Collapsed strip === */
+.strip {
+  width: 28px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--surface-sunk);
+  transition: background 0.1s;
+}
+.strip:hover { background: var(--surface); }
+.stripLabel {
+  font-size: 10px;
+  color: var(--ink-faint);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  user-select: none;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.strip:hover .stripLabel { color: var(--ink-soft); }

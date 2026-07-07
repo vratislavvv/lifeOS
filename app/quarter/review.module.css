@@ -245,10 +245,11 @@
 .scorecardFooter {
   margin-top: auto;
   padding-top: 16px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--ink-faint);
   border-top: 1px solid var(--hairline);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 /* Center body + footer (replan goals view) */

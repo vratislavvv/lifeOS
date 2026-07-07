@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { LennaText } from '@/lib/renderMarkdown';
 import { goalSubline } from '@/lib/ui/goalSubline';
+import LennaPanel from '@/components/LennaPanel';
 import { reviewSessionTurn, commitReviewSession } from './reviewActions';
 import type { QuarterReport } from '@/lib/scoring/quarterReport';
 import type { ChatMessage } from '@/lib/llm/reviewChat';
@@ -329,55 +329,17 @@ export default function ReviewSession({
         )}
       </div>
 
-      {/* ── Lenna rail ── */}
-      <div className={styles.rail}>
-        <div className={styles.railHeader}>
-          <span className={styles.railAvatar}>L</span>
-          <span className={styles.railName}>Lenna</span>
-          <span className={styles.railLabel}>Q{cqNum} review</span>
-        </div>
-
-        <div className={styles.railBody}>
-          {messages.length === 0 && (
-            <div className={sty.chatLoading}>Starting review…</div>
-          )}
-          {messages.map((m, i) =>
-            m.role === 'user' ? (
-              <div key={i} className={styles.railMsgUser}>{m.text}</div>
-            ) : (
-              <div key={i} className={styles.railMsg}>
-                <LennaText text={m.text} className={styles.railMsgText} />
-              </div>
-            )
-          )}
-          {pending && (
-            <div className={styles.railMsg}>
-              <div className={styles.railMsgPending}>…</div>
-            </div>
-          )}
-          {inputError && (
-            <div className={styles.railError}>{inputError}</div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className={styles.railCompose}>
-          <textarea
-            className={styles.railInput}
-            placeholder={showReport ? `Ask about Q${cqNum}…` : 'Ask Lenna about the plan…'}
-            rows={2}
-            value={inputText}
-            disabled={pending}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-            }}
-          />
-          {inputText.trim() && !pending && (
-            <div className={styles.railInputHint}>↵ send · shift+↵ newline</div>
-          )}
-        </div>
-      </div>
+      <LennaPanel
+        messages={messages as import('@/lib/llm/chat').ChatMessage[]}
+        inputText={inputText}
+        onInputChange={setInputText}
+        onSubmit={handleSubmit}
+        pending={pending}
+        error={inputError}
+        placeholder={showReport ? `Ask about Q${cqNum}…` : 'Ask Lenna about the plan…'}
+        label={`Lenna · Q${cqNum} review`}
+        chatEndRef={chatEndRef}
+      />
 
     </div>
   );

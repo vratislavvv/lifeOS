@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from './quarter.module.css';
 import type { vectors, goals, scores, user } from '@/lib/db/schema';
+import LennaPanel from '@/components/LennaPanel';
+import { sendToLenna } from '@/app/today/actions';
+import type { ChatMessage } from '@/lib/llm/chat';
 
 export type PastQuarterEntry = {
   quarter:  string;
@@ -223,6 +226,30 @@ export default function QuarterShell({
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [pastOpen,       setPastOpen]       = useState(false);
+  const [messages,    setMessages]    = useState<ChatMessage[]>([]);
+  const [inputText,   setInputText]   = useState('');
+  const [inputError,  setInputError]  = useState<string | null>(null);
+  const [pending, startTransition]    = useTransition();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
+
+  function handleSubmit() {
+    const text = inputText.trim();
+    if (!text || pending) return;
+    setInputError(null);
+    const prev = [...messages];
+    setMessages(m => [...m, { role: 'user', text }]);
+    setInputText('');
+    startTransition(async () => {
+      const result = await sendToLenna(text, prev);
+      if (result.error) { setInputError(result.error); setMessages(m => m.slice(0, -1)); }
+      else if (result.reply) {
+        setMessages(m => [...m, { role: 'lenna', text: result.reply! }]);
+        if (result.justLogged) router.refresh();
+      }
+    });
+  }
 
   const isCurrentQ  = quarter === currentQuarter;
   const label       = quarterLabel(quarter);
@@ -388,6 +415,17 @@ export default function QuarterShell({
           )}
         </div>
       </main>
+
+      <LennaPanel
+        messages={messages}
+        inputText={inputText}
+        onInputChange={setInputText}
+        onSubmit={handleSubmit}
+        pending={pending}
+        error={inputError}
+        placeholder="Ask about your quarter…"
+        chatEndRef={chatEndRef}
+      />
     </div>
   );
 }

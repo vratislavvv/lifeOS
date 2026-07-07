@@ -1,9 +1,13 @@
 'use client';
 
+import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import type { QuarterReport } from '@/lib/scoring/quarterReport';
 import type { vectors, user } from '@/lib/db/schema';
+import type { ChatMessage } from '@/lib/llm/chat';
 import styles from './review.module.css';
+import LennaPanel from '@/components/LennaPanel';
+import { sendToLenna } from '@/app/today/actions';
 
 type User   = typeof user.$inferSelect;
 type Vector = typeof vectors.$inferSelect;
@@ -40,23 +44,6 @@ function Sparkline({ history }: { history: { date: string; ol: number }[] }) {
   );
 }
 
-function MiniSparkline({ history }: { history: { date: string; ol: number }[] }) {
-  if (history.length < 2) return null;
-  const W = 244, H = 30;
-  const ols = history.map(h => h.ol);
-  const minOl = Math.min(...ols), maxOl = Math.max(...ols);
-  const range = maxOl - minOl || 1;
-  const pts = history.map((h, i) => {
-    const x = (i / (history.length - 1)) * W;
-    const y = H - 2 - ((h.ol - minOl) / range) * (H - 4);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', marginBottom: 8 }}>
-      <polyline points={pts} fill="none" stroke="var(--ink-soft)" strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 export default function ReplanSession({
   vectors, report, scoreHistory, olDelta,
@@ -65,6 +52,28 @@ export default function ReplanSession({
   const [cqYear, cqNum] = closedQuarter.split('-Q');
   const [, nqNum]       = currentQuarter.split('-Q');
   const prevQNum        = parseInt(cqNum) - 1;
+
+  const [messages,   setMessages]   = useState<ChatMessage[]>([]);
+  const [inputText,  setInputText]  = useState('');
+  const [inputError, setInputError] = useState<string | null>(null);
+  const [pending, startTransition]  = useTransition();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
+
+  function handleSubmit() {
+    const text = inputText.trim();
+    if (!text || pending) return;
+    setInputError(null);
+    const prev = [...messages];
+    setMessages(m => [...m, { role: 'user', text }]);
+    setInputText('');
+    startTransition(async () => {
+      const result = await sendToLenna(text, prev);
+      if (result.error) { setInputError(result.error); setMessages(m => m.slice(0, -1)); }
+      else if (result.reply) setMessages(m => [...m, { role: 'lenna', text: result.reply! }]);
+    });
+  }
 
   const olLast         = report.olLast != null ? Math.round(report.olLast) : null;
   const deltaPositive  = (olDelta ?? 0) >= 0;
@@ -78,13 +87,6 @@ export default function ReplanSession({
     const gapPp  = avgGap != null ? Math.round(avgGap * 100) : null;
     return { v, cPct, gapPp };
   });
-
-  // Lenna rail cards: best + worst
-  const withGap    = vectorStats.filter(s => s.gapPp != null);
-  const sorted     = [...withGap].sort((a, b) => (b.gapPp ?? 0) - (a.gapPp ?? 0));
-  const bestStat   = sorted[0]  ?? null;
-  const worstStat  = sorted[sorted.length - 1] ?? null;
-  const showWorst  = worstStat && worstStat !== bestStat && (worstStat.gapPp ?? 0) < -2;
 
   return (
     <div className={styles.shell}>
@@ -169,78 +171,23 @@ export default function ReplanSession({
           </div>
 
           <div className={styles.scorecardFooter}>
-            Lenna is walking this on the right → ask her anything about the quarter.
+            <Link href="/quarter" className={styles.railActionBtnPrimary}>Open Q{nqNum} board</Link>
+            <Link href="/quarter/review" className={styles.railActionBtnSecondary}>Full report →</Link>
           </div>
         </div>
       </div>
 
-      {/* ── Lenna revision rail ── */}
-      <div className={styles.rail}>
-        <div className={styles.railHeader}>
-          <span className={styles.railAvatar}>L</span>
-          <span className={styles.railName}>Lenna</span>
-          <span className={styles.railLabel}>Q{cqNum} review</span>
-        </div>
-
-        <div className={styles.railBody}>
-          {/* Opening card */}
-          <div className={styles.railMsg}>
-            <div className={styles.railMsgText}>
-              Q{cqNum}'s in the books — you closed at <strong>{olLast ?? '—'}</strong>
-              {olDelta != null
-                ? `, ${deltaPositive ? 'up' : 'down'} ${Math.abs(olDelta)} from Q${prevQNum}`
-                : ''}
-              . Here's the two-minute version.
-            </div>
-          </div>
-
-          {/* Best vector trend card */}
-          {bestStat && (
-            <div className={styles.railMsg}>
-              <div className={styles.railTrendHead}>
-                <span className={styles.railTrendSwatch} style={{ background: bestStat.v.color }} />
-                <span className={styles.railTrendLabel} style={{ color: bestStat.v.color }}>
-                  trend · {bestStat.v.label.toLowerCase()}
-                </span>
-                <span className={styles.railTrendDelta} style={{ color: 'var(--positive)' }}>
-                  {(bestStat.gapPp ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(bestStat.gapPp ?? 0)}
-                </span>
-              </div>
-              <MiniSparkline history={scoreHistory} />
-              <div className={styles.railMsgText}>
-                {bestStat.v.label} carried the quarter with the strongest pace overall.
-              </div>
-            </div>
-          )}
-
-          {/* Worst vector card */}
-          {showWorst && worstStat && (
-            <div className={styles.railMsg}>
-              <div className={styles.railMsgText}>
-                <strong style={{ color: worstStat.v.color }}>{worstStat.v.label}</strong>{' '}
-                slid {Math.abs(worstStat.gapPp ?? 0)}pp behind pace — worth protecting next quarter.
-              </div>
-            </div>
-          )}
-
-          {/* Action card */}
-          <div className={styles.railActionCard}>
-            <div className={styles.railActionText}>
-              {bestStat
-                ? `I've noted ${bestStat.v.label}'s momentum and flagged ${showWorst && worstStat ? worstStat.v.label : 'areas to watch'} to protect.`
-                : `Here's how Q${cqNum} broke down — open the board to plan Q${nqNum}.`}
-            </div>
-            <div className={styles.railActionBtns}>
-              <Link href="/quarter" className={styles.railActionBtnPrimary}>Open Q{nqNum} board</Link>
-              <Link href="/quarter/review" className={styles.railActionBtnSecondary}>Full report</Link>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.railCompose}>
-          <div className={styles.railComposePlaceholder}>Ask about Q{cqNum}…</div>
-        </div>
-      </div>
+      <LennaPanel
+        messages={messages}
+        inputText={inputText}
+        onInputChange={setInputText}
+        onSubmit={handleSubmit}
+        pending={pending}
+        error={inputError}
+        placeholder={`Ask about Q${cqNum}…`}
+        label={`Lenna · Q${cqNum}`}
+        chatEndRef={chatEndRef}
+      />
 
     </div>
   );
