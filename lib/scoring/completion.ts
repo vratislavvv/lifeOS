@@ -8,6 +8,7 @@ export type GoalForCompletion = {
   trackabilityTier?: string | null;
   proxyModel?:       string | null;
   startDate:         string | null;
+  endDate:           string | null;
   cadencePerWeek:    number | null;
   startValue:        number | null;
   targetValue:       number | null;
@@ -35,7 +36,7 @@ export function computeCompletion(
         : metricCompletion(goal, inputs);
 
     case 'consistency':
-      return consistencyCompletion(goal, inputs, asOf);
+      return consistencyCompletion(goal, inputs);
 
     case 'milestone':
       return milestoneCompletion(inputs);
@@ -103,27 +104,27 @@ function metricCompletion(
 }
 
 function consistencyCompletion(
-  goal:   Pick<GoalForCompletion, 'startDate' | 'cadencePerWeek'>,
+  goal:   Pick<GoalForCompletion, 'startDate' | 'endDate' | 'cadencePerWeek'>,
   inputs: InputForCompletion[],
-  asOf:   string,
 ): number {
   if (!goal.cadencePerWeek || goal.cadencePerWeek <= 0) return 0;
-  if (!goal.startDate) return 0;
+  if (!goal.startDate || !goal.endDate) return 0;
 
-  const startMs = new Date(goal.startDate + 'T00:00:00').getTime();
-  const asOfMs  = new Date(asOf          + 'T00:00:00').getTime();
-  const daysElapsed   = Math.max((asOfMs - startMs) / 86_400_000, 0);
-  const weeksElapsed  = daysElapsed / 7;
-  const scheduledPeriods = goal.cadencePerWeek * weeksElapsed;
+  // Total target = cadence × full quarter length. This is fixed at quarter start so
+  // front-loading sessions accumulates toward the total rather than clearing a shrinking
+  // per-week schedule (which caused 6 sessions in week 1 of a 1/week goal to read 100%).
+  const startMs      = new Date(goal.startDate + 'T00:00:00').getTime();
+  const endMs        = new Date(goal.endDate   + 'T00:00:00').getTime();
+  const quarterWeeks = Math.max((endMs - startMs) / (7 * 86_400_000), 0);
+  const totalTarget  = goal.cadencePerWeek * quarterWeeks;
 
-  if (scheduledPeriods <= 0) return 0;
+  if (totalTarget <= 0) return 0;
 
-  // Accept typed consistency inputs; fall back to counting any untyped input as 1 occurrence
-  const completedPeriods = inputs
+  const completed = inputs
     .filter(i => i.kind === 'consistency_occurrence' || i.kind == null)
     .reduce((s, i) => s + (i.occurredCount ?? 1), 0);
 
-  return Math.min(completedPeriods / scheduledPeriods, 1);
+  return Math.min(completed / totalTarget, 1);
 }
 
 function milestoneCompletion(inputs: InputForCompletion[]): number {

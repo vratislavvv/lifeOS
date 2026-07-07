@@ -73,7 +73,7 @@ describe('expectedPace', () => {
 // ── completion ────────────────────────────────────────────────────────────────
 
 describe('completion — milestone', () => {
-  const base = { type: 'milestone' as const, startDate: null, cadencePerWeek: null, startValue: null, targetValue: null };
+  const base = { type: 'milestone' as const, startDate: null, endDate: null, cadencePerWeek: null, startValue: null, targetValue: null };
 
   it('sums delta × confidence, capped at MAX_INPUT_DELTA', () => {
     const inputs = [
@@ -126,7 +126,7 @@ describe('completion — milestone', () => {
 });
 
 describe('completion — metric', () => {
-  const base = { type: 'metric' as const, startDate: null, cadencePerWeek: null, startValue: 5000, targetValue: 20000 };
+  const base = { type: 'metric' as const, startDate: null, endDate: null, cadencePerWeek: null, startValue: 5000, targetValue: 20000 };
 
   it('€12k at 5k→20k = 7000/15000 = 0.4667', () => {
     const inputs = [
@@ -156,15 +156,17 @@ describe('completion — metric', () => {
 });
 
 describe('completion — consistency', () => {
+  // 13-week quarter (Apr 1 → Jul 1 = 91 days exactly), 4×/week → totalTarget = 52
   const base = {
     type: 'consistency' as const,
     startDate: '2026-04-01',
+    endDate:   '2026-07-01',
     cadencePerWeek: 4,
     startValue: null,
     targetValue: null,
   };
 
-  it('24 sessions at May 20 (49 days = 7 weeks, 28 scheduled) = 0.857', () => {
+  it('24 sessions / 52 total target = 0.461 (regardless of when logged)', () => {
     const inputs = Array.from({ length: 24 }, (_, i) => ({
       kind: 'consistency_occurrence' as const,
       progressDelta: null,
@@ -174,15 +176,15 @@ describe('completion — consistency', () => {
       date: `2026-04-${String(i + 1).padStart(2, '0')}`,
     }));
     const c = computeCompletion(base, inputs, '2026-05-20');
-    expect(c).toBeCloseTo(24 / 28, 3);
+    expect(c).toBeCloseTo(24 / 52, 3);
   });
 
   it('returns 0 when no sessions logged', () => {
     expect(computeCompletion(base, [], '2026-05-20')).toBe(0);
   });
 
-  it('clamps at 1 when over-scheduled', () => {
-    const inputs = Array.from({ length: 50 }, (_, i) => ({
+  it('clamps at 1 when sessions exceed total target', () => {
+    const inputs = Array.from({ length: 100 }, () => ({
       kind: 'consistency_occurrence' as const,
       progressDelta: null,
       value: null,
@@ -193,12 +195,25 @@ describe('completion — consistency', () => {
     expect(computeCompletion(base, inputs, '2026-05-20')).toBe(1);
   });
 
+  it('front-loading does not inflate beyond proportional — 6 sessions week 1 = 6/52', () => {
+    const inputs = Array.from({ length: 6 }, () => ({
+      kind: 'consistency_occurrence' as const,
+      progressDelta: null,
+      value: null,
+      occurredCount: 1, durationMin: null,
+      confidence: 1.0,
+      date: '2026-04-03',
+    }));
+    const c = computeCompletion(base, inputs, '2026-04-08');
+    expect(c).toBeCloseTo(6 / 52, 4);
+  });
+
   it('accepts null kind as occurrence (backward compat)', () => {
     const inputs = [
       { kind: null, progressDelta: 0.1, value: null, occurredCount: null, durationMin: null, confidence: 0.9, date: '2026-04-01' },
     ];
-    const c = computeCompletion(base, inputs, '2026-04-08');  // 1 week = 4 scheduled
-    expect(c).toBeCloseTo(1 / 4, 4);
+    const c = computeCompletion(base, inputs, '2026-04-08');
+    expect(c).toBeCloseTo(1 / 52, 4);
   });
 });
 

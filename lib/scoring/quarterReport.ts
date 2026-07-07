@@ -132,18 +132,18 @@ function computeCompletion(goal: GoalRow, goalInputs: InputRow[], asOf: string):
   }
 
   if (goal.type === 'consistency') {
-    if (!goal.cadencePerWeek || !goal.startDate) {
+    if (!goal.cadencePerWeek || !goal.startDate || !goal.endDate) {
       return { c: 0, finalValue: null, scheduledPeriods: null, completedPeriods: null };
     }
     const completedPeriods = goalInputs
       .filter(i => i.kind === 'consistency_occurrence')
       .reduce((sum, i) => sum + (i.occurredCount ?? 1), 0);
-    const msPerWeek      = 7 * 24 * 60 * 60 * 1000;
-    const weeksElapsed   = Math.max(
-      (new Date(asOf + 'T00:00:00').getTime() - new Date(goal.startDate + 'T00:00:00').getTime()) / msPerWeek,
+    const msPerWeek        = 7 * 24 * 60 * 60 * 1000;
+    const quarterWeeks     = Math.max(
+      (new Date(goal.endDate + 'T00:00:00').getTime() - new Date(goal.startDate + 'T00:00:00').getTime()) / msPerWeek,
       0,
     );
-    const scheduledPeriods = goal.cadencePerWeek * weeksElapsed;
+    const scheduledPeriods = goal.cadencePerWeek * quarterWeeks;
     const c = scheduledPeriods > 0 ? Math.min(completedPeriods / scheduledPeriods, 1) : 0;
     return { c, finalValue: null, scheduledPeriods, completedPeriods };
   }

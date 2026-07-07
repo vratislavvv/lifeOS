@@ -86,6 +86,7 @@ export default async function QuarterPage({
         trackabilityTier: g.trackabilityTier,
         proxyModel:       g.proxyModel,
         startDate:        g.startDate,
+        endDate:          g.endDate,
         cadencePerWeek:   g.cadencePerWeek,
         startValue:       g.startValue,
         targetValue:      g.targetValue,

@@ -76,6 +76,7 @@ export function recalculate(asOf?: string): ScoreResult | CalibrationResult {
         trackabilityTier: goal.trackabilityTier ?? null,
         proxyModel:       goal.proxyModel       ?? null,
         startDate:        goal.startDate,
+        endDate:          goal.endDate,
         cadencePerWeek:   goal.cadencePerWeek,
         startValue:       goal.startValue,
         targetValue:      goal.targetValue,

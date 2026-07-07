@@ -67,7 +67,7 @@ export async function sendToLenna(
     .map(g => {
       const gInputs = quarterInputsForGoals.filter(i => i.goalId === g.id || (i.goalId === null && i.vectorId === g.vectorId));
       const c = computeCompletion(
-        { type: g.type as 'milestone' | 'metric' | 'consistency', trackabilityTier: g.trackabilityTier, proxyModel: g.proxyModel, startDate: g.startDate, cadencePerWeek: g.cadencePerWeek, startValue: g.startValue, targetValue: g.targetValue },
+        { type: g.type as 'milestone' | 'metric' | 'consistency', trackabilityTier: g.trackabilityTier, proxyModel: g.proxyModel, startDate: g.startDate, endDate: g.endDate, cadencePerWeek: g.cadencePerWeek, startValue: g.startValue, targetValue: g.targetValue },
         gInputs.map(i => ({ kind: i.kind, progressDelta: i.progressDelta, value: i.value, occurredCount: i.occurredCount, durationMin: i.durationMin, confidence: i.confidence, date: i.date })),
         today,
       );
