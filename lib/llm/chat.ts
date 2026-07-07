@@ -14,6 +14,7 @@ type ChatContext = {
   goalSnapshots?: { id: string; vectorId: string; c: number; e: number }[];
   groups: { id: string; name: string }[];
   tasks: { id: string; title: string; done: boolean }[];
+  upcomingTasks?: { id: string; title: string; dueDate: string; done: boolean }[];
   recentInputs?: { date: string; vectorId: string; description: string; kind: string; occurredCount: number | null; value: number | null }[];
   olTrend?: { date: string; ol: number }[];
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
@@ -89,6 +90,11 @@ export async function chatWithLenna(
   previousMessages: ChatMessage[],
   onToolCall?: ToolHandler
 ): Promise<string> {
+  const kindForType = (type: string) =>
+    type === 'consistency' ? 'consistency_occurrence'
+    : type === 'metric'    ? 'metric_value'
+    : 'milestone_delta';
+
   const vectorLines = context.vectors.map(v => {
     const gap = context.vectorBreakdown[v.id];
     const status = gap !== undefined
@@ -97,13 +103,13 @@ export async function chatWithLenna(
     const vGoals = context.goals.filter(g => g.vectorId === v.id);
     const goalParts = vGoals.map(goal => {
       const snap = context.goalSnapshots?.find(s => s.id === goal.id);
-      let part = `goal[${goal.id}]: "${goal.description}" (${goal.type}`;
+      let part = `goal[${goal.id}]: "${goal.description}" (${goal.type}, kind=${kindForType(goal.type)}`;
       if (goal.type === 'consistency' && goal.cadencePerWeek != null) part += `, ${goal.cadencePerWeek}×/week`;
       if (snap) part += `, ${snap.c}% done / ${snap.e}% expected`;
       part += ')';
       return part;
     });
-    return `- ${v.label}: ${status}${goalParts.length ? ' | ' + goalParts.join('; ') : ''}`;
+    return `- [${v.id}] ${v.label}: ${status}${goalParts.length ? ' | ' + goalParts.join('; ') : ''}`;
   }).join('\n');
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
@@ -111,6 +117,13 @@ export async function chatWithLenna(
   const pendingTasks = context.tasks.filter(t => !t.done);
   const taskLines = pendingTasks.length > 0
     ? pendingTasks.map(t => `- [${t.id}] ${t.title}`).join('\n')
+    : '(none)';
+
+  const upcomingTaskLines = context.upcomingTasks && context.upcomingTasks.length > 0
+    ? context.upcomingTasks
+        .filter(t => !t.done)
+        .map(t => `- [${t.id}] ${t.title} (due ${t.dueDate})`)
+        .join('\n') || '(none)'
     : '(none)';
 
   const activityLines = context.recentInputs && context.recentInputs.length > 0
@@ -135,11 +148,11 @@ export async function chatWithLenna(
 
 Today is ${today} (${weekday}).
 
-Quarter: ${context.quarter} | Operating level: ${context.operatingLevel !== null ? `${context.operatingLevel}/100` : 'not computed yet'}
+Quarter: ${context.quarter} | Operating level: ${context.operatingLevel !== null ? `${Math.round(context.operatingLevel)}/100` : 'not computed yet'}
 OL trend (newest first): ${olTrendLine}
 ${context.justLogged ? `\nJust logged under ${context.justLogged.vectorId}: "${context.justLogged.summary}" (+${Math.round(context.justLogged.progressDelta * 100)}pp)` : ''}
 
-Vector pace gaps (positive = ahead of pace, negative = behind):
+Vectors — use EXACTLY these IDs in log_progress (positive gap = ahead of pace, negative = behind):
 ${vectorLines}
 
 Task groups (use groupId when adding tasks):
@@ -148,12 +161,17 @@ ${groupLines}
 Today's pending tasks (use taskId when completing):
 ${taskLines}
 
+Upcoming tasks with due dates:
+${upcomingTaskLines}
+
 Activity log — last 14 days (most recent first):
 ${activityLines}
 
+OL trend (newest first): ${olTrendLine}
+
 Rules:
 - Be direct and concise — 2–3 sentences max. No sycophancy, no filler.
-- When the user mentions ANYTHING they did or accomplished (workout, reading session, work done, habit completed, money saved, social event, anything), immediately call log_progress yourself — do NOT ask them to structure it. Infer the vector, description, and delta. Just do it.
+- LOGGING: The moment the user mentions doing ANYTHING — workout, run, reading, work session, habit, saving money, social event, anything at all — call log_progress immediately. Do NOT ask for more info. Do NOT wait. Just infer the right vector from the list above (use the exact [id] shown), pick the goal's kind (shown as kind=... next to each goal), and call the tool. For consistency goals, use kind=consistency_occurrence and occurredCount=1. For milestone goals, use kind=milestone_delta with a progressDelta between 0.05 (minor) and 0.3 (major). For metric goals, use kind=metric_value with the value they mentioned.
 - When the user says they completed, finished, or did something that vaguely matches a pending task, do NOT silently complete it. Instead ask: "Was that the '[task title]' on your list? Should I tick it off?" Then call complete_task only once they confirm.
 - When the user explicitly says to remove, tick off, or complete a task by name, call complete_task directly without asking.
 - When the user asks to add a task, call add_task. Infer importance and urgency from context.

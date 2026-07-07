@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNotNull, lte } from 'drizzle-orm';
 import { db, DEFAULT_GROUP_ID } from '@/lib/db';
 import { inputs, scores, vectors, goals, tasks, taskGroups, user as userTable } from '@/lib/db/schema';
 import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
@@ -28,6 +28,19 @@ export async function sendToLenna(
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
   const todayTasks = db.select().from(tasks).where(eq(tasks.date, today)).orderBy(asc(tasks.createdAt)).all();
+
+  // Upcoming tasks: any undone task with a dueDate in the next 14 days
+  const fourteenDaysFromNow = new Date(now);
+  fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14);
+  const upcomingTasks = db.select().from(tasks)
+    .where(and(
+      isNotNull(tasks.dueDate),
+      gte(tasks.dueDate, today),
+      lte(tasks.dueDate, fourteenDaysFromNow.toISOString().split('T')[0]),
+      eq(tasks.done, false),
+    ))
+    .orderBy(asc(tasks.dueDate))
+    .all();
 
   // Activity log: last 14 days of inputs for context
   const fourteenDaysAgo = new Date(now);
@@ -96,6 +109,7 @@ export async function sendToLenna(
         goalSnapshots,
         groups: groups.map(g => ({ id: g.id, name: g.name })),
         tasks: todayTasks.map(t => ({ id: t.id, title: t.title, done: t.done })),
+        upcomingTasks: upcomingTasks.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate!, done: t.done })),
         recentInputs: recentInputs.map(i => ({
           date: i.date,
           vectorId: i.vectorId ?? '',
