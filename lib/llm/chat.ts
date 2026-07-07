@@ -11,8 +11,11 @@ type ChatContext = {
   vectorBreakdown: Record<string, number>;
   vectors: { id: string; label: string }[];
   goals: { id: string; vectorId: string; description: string; type: string; cadencePerWeek: number | null }[];
+  goalSnapshots?: { id: string; vectorId: string; c: number; e: number }[];
   groups: { id: string; name: string }[];
   tasks: { id: string; title: string; done: boolean }[];
+  recentInputs?: { date: string; vectorId: string; description: string; kind: string; occurredCount: number | null; value: number | null }[];
+  olTrend?: { date: string; ol: number }[];
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
 };
 
@@ -91,16 +94,16 @@ export async function chatWithLenna(
     const status = gap !== undefined
       ? (gap >= 0 ? `+${Math.round(gap * 100)}pp ahead` : `${Math.round(gap * 100)}pp behind`)
       : 'no data yet';
-    const goal = context.goals.find(g => g.vectorId === v.id);
-    let goalPart = '';
-    if (goal) {
-      goalPart = ` | goal[${goal.id}]: "${goal.description}" (${goal.type}`;
-      if (goal.type === 'consistency' && goal.cadencePerWeek != null) {
-        goalPart += `, ${goal.cadencePerWeek}×/week`;
-      }
-      goalPart += ')';
-    }
-    return `- ${v.label}: ${status}${goalPart}`;
+    const vGoals = context.goals.filter(g => g.vectorId === v.id);
+    const goalParts = vGoals.map(goal => {
+      const snap = context.goalSnapshots?.find(s => s.id === goal.id);
+      let part = `goal[${goal.id}]: "${goal.description}" (${goal.type}`;
+      if (goal.type === 'consistency' && goal.cadencePerWeek != null) part += `, ${goal.cadencePerWeek}×/week`;
+      if (snap) part += `, ${snap.c}% done / ${snap.e}% expected`;
+      part += ')';
+      return part;
+    });
+    return `- ${v.label}: ${status}${goalParts.length ? ' | ' + goalParts.join('; ') : ''}`;
   }).join('\n');
 
   const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
@@ -109,6 +112,20 @@ export async function chatWithLenna(
   const taskLines = pendingTasks.length > 0
     ? pendingTasks.map(t => `- [${t.id}] ${t.title}`).join('\n')
     : '(none)';
+
+  const activityLines = context.recentInputs && context.recentInputs.length > 0
+    ? context.recentInputs.slice(0, 30).map(i => {
+        const vec = context.vectors.find(v => v.id === i.vectorId)?.label ?? i.vectorId;
+        const detail = i.kind === 'consistency_occurrence' ? `(${i.occurredCount ?? 1} session)`
+          : i.kind === 'metric_value' ? `(value: ${i.value})`
+          : '';
+        return `- ${i.date} · ${vec}: ${i.description} ${detail}`.trim();
+      }).join('\n')
+    : '(none)';
+
+  const olTrendLine = context.olTrend && context.olTrend.length > 0
+    ? context.olTrend.map(s => `${s.date}: ${s.ol}`).join(', ')
+    : 'no data';
 
   const tz = context.timezone || 'UTC';
   const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
@@ -119,6 +136,7 @@ export async function chatWithLenna(
 Today is ${today} (${weekday}).
 
 Quarter: ${context.quarter} | Operating level: ${context.operatingLevel !== null ? `${context.operatingLevel}/100` : 'not computed yet'}
+OL trend (newest first): ${olTrendLine}
 ${context.justLogged ? `\nJust logged under ${context.justLogged.vectorId}: "${context.justLogged.summary}" (+${Math.round(context.justLogged.progressDelta * 100)}pp)` : ''}
 
 Vector pace gaps (positive = ahead of pace, negative = behind):
@@ -130,6 +148,9 @@ ${groupLines}
 Today's pending tasks (use taskId when completing):
 ${taskLines}
 
+Activity log — last 14 days (most recent first):
+${activityLines}
+
 Rules:
 - Be direct and concise — 2–3 sentences max. No sycophancy, no filler.
 - When the user mentions ANYTHING they did or accomplished (workout, reading session, work done, habit completed, money saved, social event, anything), immediately call log_progress yourself — do NOT ask them to structure it. Infer the vector, description, and delta. Just do it.
@@ -137,7 +158,7 @@ Rules:
 - When the user explicitly says to remove, tick off, or complete a task by name, call complete_task directly without asking.
 - When the user asks to add a task, call add_task. Infer importance and urgency from context.
 - If progress was already logged (shown above as "Just logged"), acknowledge it briefly and note the score impact.
-- Answer questions directly. Never ask the user to provide structured input — extract it yourself.`;
+- Answer questions directly from the data above. Never say you don't have visibility into the activity log — you do.`;
 
   const messages: Anthropic.MessageParam[] = [
     ...previousMessages.map(m => ({

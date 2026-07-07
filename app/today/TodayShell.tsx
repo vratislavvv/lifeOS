@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './today.module.css';
 import { LennaText } from '@/lib/renderMarkdown';
@@ -56,6 +57,7 @@ function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean 
 
 export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace }: Props) {
   const today = new Date();
+  const router = useRouter();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputError, setInputError] = useState<string | null>(null);
@@ -127,7 +129,10 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
         setMessages(prev => prev.slice(0, -1));
       } else if (result.reply) {
         setMessages(prev => [...prev, { role: 'lenna', text: result.reply! }]);
-        if (result.justLogged) setLastLogged(result.justLogged);
+        if (result.justLogged) {
+          setLastLogged(result.justLogged);
+          router.refresh();
+        }
       }
     });
   }

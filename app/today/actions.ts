@@ -1,14 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
 import { db, DEFAULT_GROUP_ID } from '@/lib/db';
 import { inputs, scores, vectors, goals, tasks, taskGroups, user as userTable } from '@/lib/db/schema';
-import { asc } from 'drizzle-orm';
 import { chatWithLenna, type ChatMessage } from '@/lib/llm/chat';
 import { recalculate } from '@/lib/scoring/recalculate';
 import { phraseScore } from '@/lib/llm/phrase';
 import { MAX_INPUT_DELTA } from '@/lib/scoring/constants';
+import { computeCompletion } from '@/lib/scoring/completion';
+import { goalTau, expectedPace } from '@/lib/scoring/pace';
 
 export async function sendToLenna(
   rawText:    string,
@@ -27,6 +28,40 @@ export async function sendToLenna(
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
   const todayTasks = db.select().from(tasks).where(eq(tasks.date, today)).orderBy(asc(tasks.createdAt)).all();
+
+  // Activity log: last 14 days of inputs for context
+  const fourteenDaysAgo = new Date(now);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  const recentInputs = db.select().from(inputs)
+    .where(gte(inputs.date, fourteenDaysAgo.toISOString().split('T')[0]))
+    .orderBy(desc(inputs.date))
+    .all();
+
+  // OL trend: last 7 scores for trend context
+  const recentScores = db.select().from(scores)
+    .where(lte(scores.date, today))
+    .orderBy(desc(scores.date))
+    .limit(7)
+    .all();
+
+  // Goal completion snapshots (c%, e% as of today)
+  const quarterInputsForGoals = db.select().from(inputs)
+    .where(and(gte(inputs.date, `${quarter.split('-Q')[0]}-${String((parseInt(quarter.split('-Q')[1]) - 1) * 3 + 1).padStart(2, '0')}-01`), lte(inputs.date, today)))
+    .all();
+
+  const goalSnapshots = quarterGoals
+    .filter(g => g.status === 'active')
+    .map(g => {
+      const gInputs = quarterInputsForGoals.filter(i => i.goalId === g.id || (i.goalId === null && i.vectorId === g.vectorId));
+      const c = computeCompletion(
+        { type: g.type as 'milestone' | 'metric' | 'consistency', trackabilityTier: g.trackabilityTier, proxyModel: g.proxyModel, startDate: g.startDate, cadencePerWeek: g.cadencePerWeek, startValue: g.startValue, targetValue: g.targetValue },
+        gInputs.map(i => ({ kind: i.kind, progressDelta: i.progressDelta, value: i.value, occurredCount: i.occurredCount, durationMin: i.durationMin, confidence: i.confidence, date: i.date })),
+        today,
+      );
+      const tau = goalTau(g.startDate, g.endDate, today);
+      const e = expectedPace(tau, g.paceShape, g.paceParam);
+      return { id: g.id, vectorId: g.vectorId, c: Math.round(c * 100), e: Math.round(e * 100) };
+    });
 
   // Load current score for context (score updates happen via log_progress tool only)
   let operatingLevel: number | null = null;
@@ -58,8 +93,18 @@ export async function sendToLenna(
           type: g.type ?? 'milestone',
           cadencePerWeek: g.cadencePerWeek,
         })),
+        goalSnapshots,
         groups: groups.map(g => ({ id: g.id, name: g.name })),
         tasks: todayTasks.map(t => ({ id: t.id, title: t.title, done: t.done })),
+        recentInputs: recentInputs.map(i => ({
+          date: i.date,
+          vectorId: i.vectorId ?? '',
+          description: (i.metadata as { summary?: string } | null)?.summary ?? i.rawText ?? '',
+          kind: i.kind ?? '',
+          occurredCount: i.occurredCount,
+          value: i.value,
+        })),
+        olTrend: recentScores.map(s => ({ date: s.date, ol: Math.round(s.operatingLevel) })),
         justLogged,
       },
       history,
