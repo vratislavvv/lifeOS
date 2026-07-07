@@ -127,11 +127,16 @@ function consistencyCompletion(
 }
 
 function milestoneCompletion(inputs: InputForCompletion[]): number {
-  // Accept typed milestone inputs; fall back to untyped inputs with a progressDelta
   const eligible = inputs.filter(i =>
     (i.kind === 'milestone_delta' || (i.kind == null && i.progressDelta != null)) &&
     (i.confidence ?? 1) >= CONFIDENCE_FLOOR
   );
+
+  // A single input with progressDelta >= 1.0 means "goal achieved" — skip accumulation.
+  const hasCompletionEvent = eligible.some(i => (i.progressDelta ?? 0) >= 1.0);
+  if (hasCompletionEvent) return 1.0;
+
+  // Normal accumulation for partial progress (each delta capped at MAX_INPUT_DELTA).
   const total = eligible.reduce((sum, i) => {
     const delta = i.progressDelta ?? 0;
     const capped = Math.sign(delta) * Math.min(Math.abs(delta), MAX_INPUT_DELTA);
