@@ -171,7 +171,9 @@ OL trend (newest first): ${olTrendLine}
 
 Rules:
 - Be direct and concise — 2–3 sentences max. No sycophancy, no filler.
+- NEVER claim you logged, added, ticked off, or completed something unless you have called the relevant tool in this exact response. Call all tools first, then confirm what was done in one short message.
 - LOGGING: The moment the user mentions doing ANYTHING — workout, run, reading, work session, habit, saving money, social event, anything at all — call log_progress immediately. Do NOT ask for more info. Do NOT wait. Just infer the right vector from the list above (use the exact [id] shown), pick the goal's kind (shown as kind=... next to each goal), and call the tool. For consistency goals, use kind=consistency_occurrence and occurredCount=1. For milestone goals, use kind=milestone_delta with a progressDelta between 0.05 (minor) and 0.3 (major). For metric goals, use kind=metric_value with the value they mentioned.
+- When the user says they did everything / finished the day / completed their list, call log_progress for every activity they mentioned in the conversation that hasn't been logged yet, then confirm all in one message.
 - When the user says they completed, finished, or did something that vaguely matches a pending task, do NOT silently complete it. Instead ask: "Was that the '[task title]' on your list? Should I tick it off?" Then call complete_task only once they confirm.
 - When the user explicitly says to remove, tick off, or complete a task by name, call complete_task directly without asking.
 - When the user asks to add a task, call add_task. Infer importance and urgency from context.
