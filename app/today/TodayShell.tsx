@@ -154,13 +154,13 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
 
         {/* Fullscreen island overlay */}
         {fullscreen === 'clock' && (
-          <div className={styles.fullscreenIsland}>
+          <div className={`${styles.fullscreenIsland} ${styles.fullscreenClock}`}>
             <button className={styles.fullscreenClose} onClick={() => setFullscreen(null)}>✕</button>
             <Clock timeFormat={user.timeFormat} timezone={user.timezone} />
           </div>
         )}
         {fullscreen === 'focus' && (
-          <div className={styles.fullscreenIsland}>
+          <div className={`${styles.fullscreenIsland} ${styles.fullscreenFocus}`}>
             <button className={styles.fullscreenClose} onClick={() => setFullscreen(null)}>✕</button>
             <FocusTimer />
           </div>

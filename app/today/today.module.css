@@ -850,9 +850,9 @@
 .islandFullscreen:hover { color: var(--ink); background: var(--surface-sunk); }
 
 /* === Fullscreen island overlay === */
-@keyframes fsIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
+@keyframes fsExpand {
+  from { transform: scale(0.06); opacity: 0; border-radius: 10px; }
+  to   { transform: scale(1);    opacity: 1; border-radius: 0; }
 }
 
 .fullscreenIsland {
@@ -865,8 +865,15 @@
   gap: 10px;
   background: var(--bg);
   z-index: 10;
-  animation: fsIn 0.18s ease;
+  animation: fsExpand 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Clock island is top-right → expand from top-right corner */
+.fullscreenClock { transform-origin: top right; }
+
+/* Focus island is bottom-right → expand from bottom-right corner */
+.fullscreenFocus { transform-origin: bottom right; }
+
 .fullscreenClose {
   position: absolute;
   top: 16px;
@@ -890,4 +897,12 @@
 .fullscreenIsland .clockTz {
   font-size: clamp(13px, 1.4vw, 22px);
   margin-top: 0;
+}
+
+/* Focus timer ring in fullscreen gets much bigger */
+.fullscreenIsland .timerRingWrap {
+  width: clamp(200px, 38vh, 380px);
+}
+.fullscreenIsland .timerTime {
+  font-size: clamp(28px, 5vh, 56px);
 }
