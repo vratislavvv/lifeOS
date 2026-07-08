@@ -28,7 +28,7 @@
   height: 32px;
   padding: 0 4px;
   margin-bottom: 8px;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 500;
 }
 .navTree {
@@ -123,13 +123,16 @@
 /* === Content === */
 .content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
   position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
 }
 .contentHeader {
   display: flex;

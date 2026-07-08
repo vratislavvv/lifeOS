@@ -3,26 +3,22 @@
 import { useState, useEffect } from 'react';
 import type { ChatMessage } from '@/lib/llm/chat';
 
-const STORAGE_KEY = 'lenna_messages';
+// Module-level store: persists across client-side route changes, resets on page reload / new tab
+let store: ChatMessage[] = [];
+let listeners = new Set<(msgs: ChatMessage[]) => void>();
 
-export function useLennaMessages(): [ChatMessage[], React.Dispatch<React.SetStateAction<ChatMessage[]>>] {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [ready, setReady] = useState(false);
+function dispatch(action: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) {
+  store = typeof action === 'function' ? action(store) : action;
+  listeners.forEach(fn => fn(store));
+}
 
-  // Load after hydration so server and client both start with []
+export function useLennaMessages(): [ChatMessage[], typeof dispatch] {
+  const [messages, setMessages] = useState<ChatMessage[]>(store);
+
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (stored) setMessages(JSON.parse(stored) as ChatMessage[]);
-    } catch {}
-    setReady(true);
+    listeners.add(setMessages);
+    return () => { listeners.delete(setMessages); };
   }, []);
 
-  // Save only after the initial load, so we don't overwrite stored messages with []
-  useEffect(() => {
-    if (!ready) return;
-    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch {}
-  }, [messages, ready]);
-
-  return [messages, setMessages];
+  return [messages, dispatch];
 }
