@@ -189,6 +189,7 @@
 .prioHighHigh { border-left: 3px solid var(--attention); }
 .prioHighLow  { border-left: 3px solid var(--ink-soft); }
 .prioLowHigh  { border-left: 3px solid var(--ink-faint); }
+.taskOverdue  { border-left: 3px solid var(--attention); background: rgba(184,134,60,0.06); }
 .taskPending  { opacity: 0.5; pointer-events: none; }
 .taskCheck {
   width: 14px;

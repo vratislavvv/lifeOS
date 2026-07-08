@@ -145,13 +145,14 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
                 )}
                 {groupTasks.map(task => {
                   const due = dueDateLabel(task.dueDate);
-                  const isToday = task.date === today;
+                  const isOverdue = due?.overdue ?? false;
                   return (
                     <div
                       key={task.id}
                       className={[
                         styles.taskRow,
                         priorityClass(task.important, task.urgent, styles as Record<string, string>),
+                        isOverdue && !task.done ? styles.taskOverdue : '',
                         taskPending ? styles.taskPending : '',
                       ].join(' ')}
                     >
@@ -165,7 +166,6 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
                           {task.title}
                         </span>
                         <div className={styles.taskMeta}>
-                          {isToday && <span className={styles.taskDateBadge}>today</span>}
                           {due && (
                             <span className={`${styles.taskDueDate} ${due.overdue ? styles.taskDueDateOverdue : ''}`}>
                               {due.text}
