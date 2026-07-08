@@ -689,10 +689,6 @@
 }
 .taskRow:hover .taskDelete { opacity: 1; }
 
-/* Priority left-border colours */
-.prioHighHigh { border-left-color: var(--attention); }
-.prioHighLow  { border-left-color: var(--v-craft); }
-.prioLowHigh  { border-left-color: #5b9cf6; }
 
 .taskBody {
   flex: 1;

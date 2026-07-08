@@ -41,11 +41,9 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        title:     { type: 'string',  description: 'Concise, actionable task title' },
-        groupId:   { type: 'string',  description: 'Task group ID. Omit to use the default Daily group.' },
-        important: { type: 'boolean', description: 'True if this task is important (high impact)' },
-        urgent:    { type: 'boolean', description: 'True if this task must be done today or very soon' },
-        dueDate:   { type: 'string',  description: 'Optional due date in YYYY-MM-DD format' },
+        title:   { type: 'string', description: 'Concise, actionable task title' },
+        groupId: { type: 'string', description: 'Task group ID. Omit to use the default Daily group.' },
+        dueDate: { type: 'string', description: 'Optional due date in YYYY-MM-DD format' },
       },
       required: ['title'],
     },
@@ -67,12 +65,10 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        taskId:    { type: 'string',  description: 'ID of the task to edit' },
-        title:     { type: 'string',  description: 'New title' },
-        important: { type: 'boolean', description: 'New importance flag' },
-        urgent:    { type: 'boolean', description: 'New urgency flag' },
-        dueDate:   { type: 'string',  description: 'New due date YYYY-MM-DD, or empty string to clear' },
-        groupId:   { type: 'string',  description: 'New group ID' },
+        taskId:  { type: 'string', description: 'ID of the task to edit' },
+        title:   { type: 'string', description: 'New title' },
+        dueDate: { type: 'string', description: 'New due date YYYY-MM-DD, or empty string to clear' },
+        groupId: { type: 'string', description: 'New group ID' },
       },
       required: ['taskId'],
     },

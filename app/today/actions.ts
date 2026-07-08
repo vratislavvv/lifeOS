@@ -144,17 +144,14 @@ export async function sendToLenna(
         }
 
         if (toolName === 'edit_task') {
-          const { taskId, title, important, urgent, dueDate, groupId } = input as {
-            taskId: string; title?: string; important?: boolean; urgent?: boolean;
-            dueDate?: string; groupId?: string;
+          const { taskId, title, dueDate, groupId } = input as {
+            taskId: string; title?: string; dueDate?: string; groupId?: string;
           };
           const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
           if (!task) return 'Task not found.';
           const updates: Record<string, unknown> = {};
-          if (title     !== undefined) updates.title     = title;
-          if (important !== undefined) updates.important = important;
-          if (urgent    !== undefined) updates.urgent    = urgent;
-          if (dueDate   !== undefined) updates.dueDate   = dueDate || null;
+          if (title   !== undefined) updates.title   = title;
+          if (dueDate !== undefined) updates.dueDate = dueDate || null;
           if (groupId   !== undefined) {
             const validGroup = groups.find(g => g.id === groupId);
             if (!validGroup) return 'Group not found.';
@@ -166,11 +163,9 @@ export async function sendToLenna(
         }
 
         if (toolName === 'add_task') {
-          const { title, groupId, important, urgent, dueDate } = input as {
+          const { title, groupId, dueDate } = input as {
             title: string;
             groupId?: string;
-            important?: boolean;
-            urgent?: boolean;
             dueDate?: string;
           };
           const validGroupId = groups.find(g => g.id === groupId)?.id ?? DEFAULT_GROUP_ID;
@@ -178,8 +173,6 @@ export async function sendToLenna(
             title,
             date: today,
             groupId: validGroupId,
-            important: important ?? false,
-            urgent: urgent ?? false,
             dueDate: dueDate ?? null,
           }).run();
           return `Task "${title}" added to today's list.`;

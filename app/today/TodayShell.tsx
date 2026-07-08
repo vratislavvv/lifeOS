@@ -40,12 +40,6 @@ function formatDate(d: Date) {
 
 const TODAY_STR = new Date().toISOString().split('T')[0];
 
-function priorityClass(important: boolean, urgent: boolean) {
-  if (important && urgent)  return styles.prioHighHigh;
-  if (important && !urgent) return styles.prioHighLow;
-  if (!important && urgent) return styles.prioLowHigh;
-  return '';
-}
 
 function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean } | null {
   if (!dueDate) return null;
@@ -186,15 +180,7 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
                     {groups
                       .filter(g => todayTasks.some(t => t.groupId === g.id))
                       .map(group => {
-                        const groupTasks = todayTasks
-                          .filter(t => t.groupId === group.id)
-                          .sort((a, b) => {
-                            const priority = (t: Task) =>
-                              t.important && t.urgent ? 0 :
-                              t.important ? 1 :
-                              t.urgent ? 2 : 3;
-                            return priority(a) - priority(b);
-                          });
+                        const groupTasks = todayTasks.filter(t => t.groupId === group.id);
                         return (
                           <div key={group.id} className={styles.taskGroup}>
                             <div className={styles.taskGroupHeader}>{group.name}</div>
@@ -205,7 +191,6 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
                                   key={task.id}
                                   className={[
                                     styles.taskRow,
-                                    priorityClass(task.important, task.urgent),
                                     taskPending ? styles.taskPending : '',
                                   ].join(' ')}
                                 >

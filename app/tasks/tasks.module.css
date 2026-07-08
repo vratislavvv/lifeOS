@@ -186,9 +186,7 @@
   transition: background 0.1s;
 }
 .taskRow:hover { background: var(--surface-sunk); }
-.prioHighHigh { border-left: 3px solid var(--attention); }
-.prioHighLow  { border-left: 3px solid var(--ink-soft); }
-.prioLowHigh  { border-left: 3px solid var(--ink-faint); }
+
 .taskOverdue  { background: rgba(184,134,60,0.07); }
 .taskPending  { opacity: 0.5; pointer-events: none; }
 .taskCheck {

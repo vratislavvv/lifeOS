@@ -33,12 +33,6 @@ function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean 
   return { text: `due ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, overdue: false };
 }
 
-function priorityClass(important: boolean, urgent: boolean, s: Record<string, string>) {
-  if (important && urgent)  return s.prioHighHigh;
-  if (important && !urgent) return s.prioHighLow;
-  if (!important && urgent) return s.prioLowHigh;
-  return '';
-}
 
 export default function TasksShell({ user, vectors, groups, tasks: allTasks, today }: Props) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -128,12 +122,7 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
 
         <div className={styles.centerBody}>
           {displayGroups.map(group => {
-            const groupTasks = allTasks
-              .filter(t => t.groupId === group.id)
-              .sort((a, b) => {
-                const p = (t: Task) => t.important && t.urgent ? 0 : t.important ? 1 : t.urgent ? 2 : 3;
-                return p(a) - p(b);
-              });
+            const groupTasks = allTasks.filter(t => t.groupId === group.id);
             return (
               <div key={group.id} className={styles.group}>
                 <div className={styles.groupHeader}>
@@ -151,7 +140,6 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
                       key={task.id}
                       className={[
                         styles.taskRow,
-                        priorityClass(task.important, task.urgent, styles as Record<string, string>),
                         isOverdue && !task.done ? styles.taskOverdue : '',
                         taskPending ? styles.taskPending : '',
                       ].join(' ')}
