@@ -22,7 +22,7 @@ type Props = {
   today:   string;
 };
 
-const TODAY_STR = new Date().toISOString().split('T')[0];
+const TODAY_STR = new Date().toLocaleDateString('en-CA');
 
 function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean } | null {
   if (!dueDate) return null;

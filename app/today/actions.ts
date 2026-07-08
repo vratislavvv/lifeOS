@@ -20,10 +20,11 @@ export async function sendToLenna(
   if (!text) return {};
 
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const quarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
-
   const u = db.select().from(userTable).get();
+  const tz = u?.timezone ?? 'UTC';
+  const today = now.toLocaleDateString('en-CA', { timeZone: tz });
+  const [todayYear, todayMonth] = today.split('-').map(Number);
+  const quarter = `${todayYear}-Q${Math.ceil(todayMonth / 3)}`;
   const vecs = db.select().from(vectors).all();
   const quarterGoals = db.select().from(goals).where(eq(goals.quarter, quarter)).all();
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
@@ -36,7 +37,7 @@ export async function sendToLenna(
     .where(and(
       isNotNull(tasks.dueDate),
       gte(tasks.dueDate, today),
-      lte(tasks.dueDate, fourteenDaysFromNow.toISOString().split('T')[0]),
+      lte(tasks.dueDate, fourteenDaysFromNow.toLocaleDateString('en-CA', { timeZone: tz })),
       eq(tasks.done, false),
     ))
     .orderBy(asc(tasks.dueDate))
@@ -46,7 +47,7 @@ export async function sendToLenna(
   const fourteenDaysAgo = new Date(now);
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
   const recentInputs = db.select().from(inputs)
-    .where(gte(inputs.date, fourteenDaysAgo.toISOString().split('T')[0]))
+    .where(gte(inputs.date, fourteenDaysAgo.toLocaleDateString('en-CA', { timeZone: tz })))
     .orderBy(desc(inputs.date))
     .all();
 

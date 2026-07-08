@@ -16,9 +16,10 @@ export default function TodayPage() {
   const vecs = db.select().from(vectors).orderBy(asc(vectors.order)).all();
 
   const now = new Date();
-  const quarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
-
-  const today = now.toISOString().split('T')[0];
+  const tz = u.timezone ?? 'UTC';
+  const today = now.toLocaleDateString('en-CA', { timeZone: tz });
+  const [todayYear, todayMonth] = today.split('-').map(Number);
+  const quarter = `${todayYear}-Q${Math.ceil(todayMonth / 3)}`;
   const latestScore = db.select().from(scores)
     .where(eq(scores.date, today))
     .orderBy(desc(scores.createdAt))
