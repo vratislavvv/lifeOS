@@ -8,6 +8,7 @@ import Clock from './Clock';
 import FocusTimer from './FocusTimer';
 import CalSection from './CalSection';
 import LennaPanel from '@/components/LennaPanel';
+import RadarChart from '@/components/RadarChart';
 import { sendToLenna } from './actions';
 import { toggleTask, deleteTask } from './taskActions';
 import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
@@ -249,41 +250,18 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
             {/* Row 2: Quarter island + Focus */}
             <div className={styles.row}>
               <div className={`${styles.island} ${styles.quarterIsland}`}>
-                <div className={styles.islandLabel}>
-                  Quarter · {quarterLabel}
-                </div>
-                {vectors.map(v => {
-                  const vc = vectorCompletion[v.id] ?? null;
-                  const c = vc?.c ?? null;
-                  const e = vc?.e ?? quarterPace;
-                  const gap = c !== null ? c - e : null;
-                  const ahead = gap !== null && gap >= 0;
-                  const deltaLabel = gap !== null
-                    ? `${ahead ? '+' : ''}${Math.round(gap * 100)}pp`
-                    : '—';
-                  return (
-                    <div key={v.id} className={styles.vectorRow}>
-                      <div className={styles.vdot} style={{ background: v.color }} />
-                      <span className={styles.vlabel}>{v.label}</span>
-                      <div className={styles.vtrack}>
-                        <div className={styles.vtrackBg} />
-                        <div className={styles.vpace} style={{ left: `${e * 100}%` }} />
-                        {c !== null && (
-                          <div
-                            className={styles.vnow}
-                            style={{ left: `${Math.min(c, 1) * 100}%`, background: v.color }}
-                          />
-                        )}
-                      </div>
-                      <span
-                        className={styles.vdelta}
-                        style={{ color: gap !== null ? (ahead ? 'var(--positive)' : 'var(--attention)') : undefined }}
-                      >
-                        {deltaLabel}
-                      </span>
-                    </div>
-                  );
-                })}
+                <RadarChart
+                  vectors={vectors.map(v => {
+                    const vc = vectorCompletion[v.id];
+                    return {
+                      id:    v.id,
+                      label: v.label,
+                      color: v.color,
+                      c:     vc?.c ?? 0,
+                      e:     vc?.e ?? quarterPace,
+                    };
+                  })}
+                />
               </div>
               <div className={`${styles.island} ${styles.islandSunk} ${styles.focusIsland}`}>
                 <button className={styles.islandFullscreen} onClick={() => setFullscreen('focus')} title="Fullscreen">⤢</button>

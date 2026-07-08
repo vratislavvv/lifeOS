@@ -28,7 +28,7 @@
   height: 32px;
   padding: 0 4px;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
 }
 .navTree {
@@ -66,7 +66,7 @@
   padding: 0 8px;
   border-radius: 6px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   gap: 7px;
   user-select: none;
@@ -113,7 +113,7 @@
   padding: 0 8px;
   border-radius: 6px;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-faint);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
@@ -137,11 +137,11 @@
   justify-content: space-between;
   flex-shrink: 0;
 }
-.headerTitle { font-size: 18px; font-weight: 500; }
-.headerDate { font-size: 11px; font-family: var(--font-mono); color: var(--ink-soft); margin-top: 3px; }
+.headerTitle { font-size: 22px; font-weight: 500; }
+.headerDate { font-size: 13px; font-family: var(--font-mono); color: var(--ink-soft); margin-top: 3px; }
 .headerScore { text-align: right; }
 .scoreNum {
-  font-size: 36px;
+  font-size: 44px;
   font-weight: 500;
   font-family: var(--font-mono);
   line-height: 1;
@@ -149,7 +149,7 @@
   color: var(--ink-faint);
 }
 .scoreNumSet { color: var(--ink); }
-.scoreLabel { font-size: 10px; color: var(--ink-faint); margin-top: 3px; }
+.scoreLabel { font-size: 12px; color: var(--ink-faint); margin-top: 3px; }
 
 /* === Island rows === */
 .row { display: flex; gap: 10px; flex-shrink: 0; }
@@ -164,7 +164,7 @@
 }
 .islandSunk { background: var(--surface-sunk); border: none; }
 .islandLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ink-faint);
   margin-bottom: 10px;
@@ -174,7 +174,7 @@
 /* Today island */
 .todayIsland { flex: 1; }
 .emptyState {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-faint);
   font-family: var(--font-mono);
   padding: 8px 0;
@@ -666,7 +666,7 @@
 .taskGroup { display: flex; flex-direction: column; margin-bottom: 6px; }
 .taskGroup:last-child { margin-bottom: 0; }
 .taskGroupHeader {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ink-faint);
   text-transform: uppercase;
@@ -731,7 +731,7 @@
   transform: rotate(45deg);
 }
 .taskTitle {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ink);
   line-height: 1.4;
   white-space: nowrap;
@@ -739,7 +739,7 @@
   text-overflow: ellipsis;
 }
 .taskDueDate {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-faint);
   font-family: var(--font-mono);
 }

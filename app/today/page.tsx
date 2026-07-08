@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { and, asc, desc, eq, gte, lt, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lt, lte, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { user, vectors, goals, inputs, scores, tasks, taskGroups } from '@/lib/db/schema';
 import { quarterPaceNow, goalTau, expectedPace } from '@/lib/scoring/pace';
@@ -29,7 +29,10 @@ export default function TodayPage() {
 
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
   const todayTasks = db.select().from(tasks)
-    .where(eq(tasks.date, today))
+    .where(and(
+      eq(tasks.date, today),
+      or(isNull(tasks.dueDate), lte(tasks.dueDate, today)),
+    ))
     .orderBy(asc(tasks.createdAt))
     .all();
 
