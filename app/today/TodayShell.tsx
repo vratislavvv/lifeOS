@@ -186,11 +186,13 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
                             <div className={styles.taskGroupHeader}>{group.name}</div>
                             {groupTasks.map(task => {
                               const due = dueDateLabel(task.dueDate);
+                              const isOverdue = due?.overdue ?? false;
                               return (
                                 <div
                                   key={task.id}
                                   className={[
                                     styles.taskRow,
+                                    isOverdue && !task.done ? styles.taskOverdue : '',
                                     taskPending ? styles.taskPending : '',
                                   ].join(' ')}
                                 >

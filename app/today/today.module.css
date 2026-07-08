@@ -701,6 +701,7 @@
   min-width: 0;
 }
 
+.taskOverdue { background: rgba(184,134,60,0.07); }
 .taskPending { opacity: 0.5; pointer-events: none; }
 .taskCheck {
   width: 15px;

@@ -30,9 +30,17 @@ export default function TodayPage() {
 
   const groups = db.select().from(taskGroups).orderBy(asc(taskGroups.order)).all();
   const todayTasks = db.select().from(tasks)
-    .where(and(
-      eq(tasks.date, today),
-      or(isNull(tasks.dueDate), lte(tasks.dueDate, today)),
+    .where(or(
+      // Tasks added today with no future due date
+      and(
+        eq(tasks.date, today),
+        or(isNull(tasks.dueDate), lte(tasks.dueDate, today)),
+      ),
+      // Overdue undone tasks from any previous day
+      and(
+        lt(tasks.dueDate, today),
+        eq(tasks.done, false),
+      ),
     ))
     .orderBy(asc(tasks.createdAt))
     .all();
