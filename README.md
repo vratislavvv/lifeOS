@@ -15,7 +15,6 @@ A personal life operating system. Tracks progress across life vectors — Craft,
 - **Planning sessions** — Lenna-led setup (cold start) and quarterly review→replan sessions. Goals are authored as drafts, confirmed, then committed to active. Prior-quarter goals close with their final score recorded
 - **On-demand replan** — mid-quarter session to abandon stale goals and author new ones without waiting for the quarter boundary
 - **Tasks** — grouped into named lists with optional nested sublists (e.g. School → IB002, History). Tasks have due dates with overdue highlighting. Lenna can create, edit, move, and delete tasks and lists from chat. Collapsible groups, multi-select filter pills, animated transitions
-- **Dark mode** — full dark/light toggle in Settings
 
 ---
 
@@ -119,16 +118,3 @@ docs/
 | `npm test` | Run scoring engine tests (Vitest) |
 | `npm run db:studio` | Open Drizzle Studio to browse the database |
 
----
-
-## Roadmap
-
-- [ ] Calendar widget (dashboard)
-- [ ] Vector editor (rename, recolor, reorder)
-- [ ] Goals view (all goals across vectors and quarters)
-- [ ] Settings subviews (Profile, Display, Integrations)
-- [ ] Google Calendar integration
-- [ ] Strava integration (auto-log to Body vector)
-- [ ] Recurring tasks
-- [ ] Search
-- [ ] Mobile layout
