@@ -139,9 +139,9 @@ export default function RadarChart({ vectors }: Props) {
             <g key={v.id}>
               <text
                 x={lx}
-                y={ly - 5}
+                y={ly - 3}
                 textAnchor={anchor}
-                fontSize={13}
+                fontSize={10}
                 fontWeight={500}
                 fontFamily="var(--font-sans)"
                 fill="var(--ink)"
@@ -150,9 +150,9 @@ export default function RadarChart({ vectors }: Props) {
               </text>
               <text
                 x={lx}
-                y={ly + 9}
+                y={ly + 8}
                 textAnchor={anchor}
-                fontSize={10}
+                fontSize={8}
                 fontFamily="var(--font-mono)"
                 fill="var(--ink-faint)"
               >

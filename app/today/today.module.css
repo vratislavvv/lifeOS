@@ -186,15 +186,16 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  gap: 0;
 }
 .clockTime {
-  font-size: 30px;
+  font-size: clamp(22px, 3.5vh, 52px);
   font-weight: 500;
   font-family: var(--font-mono);
   line-height: 1;
   letter-spacing: 0.01em;
 }
-.clockTz { font-size: 10px; font-family: var(--font-mono); color: var(--ink-faint); margin-top: 6px; }
+.clockTz { font-size: clamp(9px, 1vh, 13px); font-family: var(--font-mono); color: var(--ink-faint); margin-top: 6px; }
 
 /* Quarter island */
 .quarterIsland { flex: 1; }
@@ -247,13 +248,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   flex: 1;
 }
 .timerRingWrap {
   position: relative;
-  width: 96px;
-  height: 96px;
+  width: clamp(80px, 18vh, 150px);
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
 }
 .timerSvg { display: block; }
@@ -267,7 +269,7 @@
   gap: 2px;
 }
 .timerTime {
-  font-size: 17px;
+  font-size: clamp(13px, 2vh, 22px);
   font-weight: 500;
   font-family: var(--font-mono);
   color: var(--ink-faint);

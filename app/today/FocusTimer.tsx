@@ -155,7 +155,7 @@ export default function FocusTimer() {
       </div>
 
       <div className={styles.timerRingWrap}>
-        <svg className={styles.timerSvg} viewBox="0 0 96 96" width="96" height="96">
+        <svg className={styles.timerSvg} viewBox="0 0 96 96" width="100%" height="100%">
           <circle cx="48" cy="48" r={R} fill="none" stroke="var(--hairline)" strokeWidth="3" />
           <circle
             cx="48" cy="48" r={R}
