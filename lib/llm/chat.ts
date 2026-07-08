@@ -62,6 +62,22 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'edit_task',
+    description: "Edit an existing task's title, priority flags, due date, or group. Only include the fields you want to change.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        taskId:    { type: 'string',  description: 'ID of the task to edit' },
+        title:     { type: 'string',  description: 'New title' },
+        important: { type: 'boolean', description: 'New importance flag' },
+        urgent:    { type: 'boolean', description: 'New urgency flag' },
+        dueDate:   { type: 'string',  description: 'New due date YYYY-MM-DD, or empty string to clear' },
+        groupId:   { type: 'string',  description: 'New group ID' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
     name: 'log_progress',
     description: 'Log progress for a life vector. Use the kind that matches the goal type — the backend computes correct completion from the structured signal, not from progressDelta estimates.',
     input_schema: {
@@ -173,6 +189,7 @@ Rules:
 - When the user says they did everything / finished the day / completed their list, call log_progress for every activity they mentioned in the conversation that hasn't been logged yet, then confirm all in one message.
 - When the user says they completed, finished, or did something that vaguely matches a pending task, do NOT silently complete it. Instead ask: "Was that the '[task title]' on your list? Should I tick it off?" Then call complete_task only once they confirm.
 - When the user explicitly says to remove, tick off, or complete a task by name, call complete_task directly without asking.
+- When the user asks to rename, change, update, or set a due date on a task, call edit_task with only the fields that change.
 - When the user asks to add a task, call add_task. Infer importance and urgency from context.
 - If progress was already logged (shown above as "Just logged"), acknowledge it briefly and note the score impact.
 - Answer questions directly from the data above. Never say you don't have visibility into the activity log — you do.`;

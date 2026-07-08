@@ -4,13 +4,13 @@ import { useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import styles from './today.module.css';
-import { LennaText } from '@/lib/renderMarkdown';
 import Clock from './Clock';
 import FocusTimer from './FocusTimer';
 import CalSection from './CalSection';
+import LennaPanel from '@/components/LennaPanel';
 import { sendToLenna } from './actions';
 import { toggleTask, deleteTask } from './taskActions';
-import type { ChatMessage } from '@/lib/llm/chat';
+import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
 import type { vectors, scores, tasks, taskGroups, user } from '@/lib/db/schema';
 
 type User = typeof user.$inferSelect;
@@ -27,6 +27,7 @@ type Props = {
   todayTasks: Task[];
   currentQuarter: string;
   quarterPace: number;
+  vectorCompletion: Record<string, { c: number; e: number }>;
 };
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -55,48 +56,20 @@ function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean 
   return { text: `due ${label}`, overdue: false };
 }
 
-export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace }: Props) {
+export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace, vectorCompletion }: Props) {
   const today = new Date();
   const router = useRouter();
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useLennaMessages();
   const [inputError, setInputError] = useState<string | null>(null);
   const [lastLogged, setLastLogged] = useState<{ vectorId: string; summary: string; progressDelta: number } | null>(null);
-  const [lennaOpen, setLennaOpen] = useState(true);
-  const [lennaWidth, setLennaWidth] = useState(260);
   const [fullscreen, setFullscreen] = useState<'clock' | 'focus' | null>(null);
   const [pending, startTransition] = useTransition();
   const [taskPending, startTaskTransition] = useTransition();
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 180), 520);
-      setLennaWidth(newWidth);
-    }
-    function onMouseUp() {
-      if (!dragging.current) return;
-      dragging.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, []);
 
   const [qYear, qNum] = currentQuarter.split('-Q');
   const quarterLabel = `Q${qNum} ${qYear}`;
-  const firstName = user.name.trim().split(' ')[0] || 'you';
-
-  const breakdown = score
-    ? (score.vectorBreakdown as Record<string, number>)
-    : {};
 
   // Scroll chat to bottom on new messages
   useEffect(() => {
@@ -118,7 +91,7 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
     setInputError(null);
 
     const previousMessages = [...messages];
-    const userMessage: ChatMessage = { role: 'user', text };
+    const userMessage = { role: 'user' as const, text };
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
 
@@ -280,13 +253,13 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
                   Quarter · {quarterLabel}
                 </div>
                 {vectors.map(v => {
-                  const paceGap = breakdown[v.id] ?? null;
-                  const progress = paceGap !== null
-                    ? Math.min(Math.max(paceGap + quarterPace, 0), 1)
-                    : null;
-                  const ahead = paceGap !== null && paceGap >= 0;
-                  const deltaLabel = paceGap !== null
-                    ? `${ahead ? '+' : ''}${Math.round(paceGap * 100)}pp`
+                  const vc = vectorCompletion[v.id] ?? null;
+                  const c = vc?.c ?? null;
+                  const e = vc?.e ?? quarterPace;
+                  const gap = c !== null ? c - e : null;
+                  const ahead = gap !== null && gap >= 0;
+                  const deltaLabel = gap !== null
+                    ? `${ahead ? '+' : ''}${Math.round(gap * 100)}pp`
                     : '—';
                   return (
                     <div key={v.id} className={styles.vectorRow}>
@@ -294,17 +267,17 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
                       <span className={styles.vlabel}>{v.label}</span>
                       <div className={styles.vtrack}>
                         <div className={styles.vtrackBg} />
-                        <div className={styles.vpace} style={{ left: `${quarterPace * 100}%` }} />
-                        {progress !== null && (
+                        <div className={styles.vpace} style={{ left: `${e * 100}%` }} />
+                        {c !== null && (
                           <div
                             className={styles.vnow}
-                            style={{ left: `${progress * 100}%`, background: v.color }}
+                            style={{ left: `${Math.min(c, 1) * 100}%`, background: v.color }}
                           />
                         )}
                       </div>
                       <span
                         className={styles.vdelta}
-                        style={{ color: paceGap !== null ? (ahead ? 'var(--positive)' : 'var(--attention)') : undefined }}
+                        style={{ color: gap !== null ? (ahead ? 'var(--positive)' : 'var(--attention)') : undefined }}
                       >
                         {deltaLabel}
                       </span>
@@ -325,99 +298,16 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
 
       </main>
 
-      {/* ── Resize handle ── */}
-      <div
-        className={styles.resizeHandle}
-        onMouseDown={e => {
-          e.preventDefault();
-          dragging.current = true;
-          document.body.style.cursor = 'col-resize';
-          document.body.style.userSelect = 'none';
-        }}
-      >
-        <div className={styles.handleDots}>
-          <div className={styles.handleDot} />
-          <div className={styles.handleDot} />
-          <div className={styles.handleDot} />
-        </div>
-      </div>
-
-      {/* ── Lenna ── */}
-      {lennaOpen ? (
-        <aside className={styles.assistant} style={{ width: lennaWidth }}>
-          <div className={styles.assistantHeader}>
-            <span className={styles.assistantTitle}>Lenna</span>
-            <button
-              className={styles.assistantCollapse}
-              onClick={() => setLennaOpen(false)}
-              title="Close Lenna"
-            >
-              ←
-            </button>
-          </div>
-
-          <div className={styles.assistantBody}>
-            {messages.length === 0 ? (
-              <div className={styles.chatLenna}>
-                <div className={styles.chatLennaLabel}>lenna</div>
-                <div className={styles.chatLennaText}>
-                  {score
-                    ? `Operating level is ${Math.round(score.operatingLevel)}. What else moved today, ${firstName}?`
-                    : `Setup complete, ${firstName}. Tell me what moved today and I'll compute your first operating level.`
-                  }
-                </div>
-              </div>
-            ) : (
-              messages.map((m, i) =>
-                m.role === 'user' ? (
-                  <div key={i} className={styles.chatUser}>{m.text}</div>
-                ) : (
-                  <div key={i} className={styles.chatLenna}>
-                    <div className={styles.chatLennaLabel}>lenna</div>
-                    <LennaText text={m.text} className={styles.chatLennaText} />
-                  </div>
-                )
-              )
-            )}
-            {pending && (
-              <div className={styles.chatLenna}>
-                <div className={styles.chatLennaLabel}>lenna</div>
-                <div className={`${styles.chatLennaText} ${styles.chatPending}`}>…</div>
-              </div>
-            )}
-            {inputError && (
-              <div style={{ fontSize: 11, color: 'var(--attention)', fontFamily: 'var(--font-mono)', padding: '4px 0' }}>
-                {inputError}
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className={styles.assistantInputWrap}>
-            <textarea
-              className={styles.assistantInput}
-              placeholder="What moved today?"
-              rows={2}
-              value={inputText}
-              disabled={pending}
-              onChange={e => setInputText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-            />
-            {inputText.trim() && !pending && (
-              <div className={styles.assistantInputHint}>↵ send · shift+↵ newline</div>
-            )}
-          </div>
-        </aside>
-      ) : (
-        <div className={styles.lennaStrip} onClick={() => setLennaOpen(true)} title="Open Lenna">
-          <span className={styles.lennaStripLabel}>Lenna →</span>
-        </div>
-      )}
+      <LennaPanel
+        messages={messages}
+        inputText={inputText}
+        onInputChange={setInputText}
+        onSubmit={handleSubmit}
+        pending={pending}
+        error={inputError}
+        placeholder="What moved today?"
+        chatEndRef={chatEndRef}
+      />
 
     </div>
   );

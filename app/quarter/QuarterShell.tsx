@@ -7,7 +7,7 @@ import styles from './quarter.module.css';
 import type { vectors, goals, scores, user } from '@/lib/db/schema';
 import LennaPanel from '@/components/LennaPanel';
 import { sendToLenna } from '@/app/today/actions';
-import type { ChatMessage } from '@/lib/llm/chat';
+import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
 
 export type PastQuarterEntry = {
   quarter:  string;
@@ -226,7 +226,7 @@ export default function QuarterShell({
 
   const [notifDismissed, setNotifDismissed] = useState(false);
   const [pastOpen,       setPastOpen]       = useState(false);
-  const [messages,    setMessages]    = useState<ChatMessage[]>([]);
+  const [messages,    setMessages]    = useLennaMessages();
   const [inputText,   setInputText]   = useState('');
   const [inputError,  setInputError]  = useState<string | null>(null);
   const [pending, startTransition]    = useTransition();

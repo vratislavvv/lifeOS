@@ -4,10 +4,10 @@ import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { sendToLenna } from '../today/actions';
 import { toggleTask, deleteTask, addTask } from '../today/taskActions';
-import type { ChatMessage } from '@/lib/llm/chat';
 import type { vectors, tasks, taskGroups, user } from '@/lib/db/schema';
 import styles from './tasks.module.css';
 import LennaPanel from '@/components/LennaPanel';
+import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
 
 type User      = typeof user.$inferSelect;
 type Vector    = typeof vectors.$inferSelect;
@@ -43,7 +43,7 @@ function priorityClass(important: boolean, urgent: boolean, s: Record<string, st
 export default function TasksShell({ user, vectors, groups, tasks: allTasks, today }: Props) {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [inputText, setInputText]             = useState('');
-  const [messages, setMessages]               = useState<ChatMessage[]>([]);
+  const [messages, setMessages]               = useLennaMessages();
   const [inputError, setInputError]           = useState<string | null>(null);
   const [pending, startTransition]            = useTransition();
   const [taskPending, startTaskTransition]    = useTransition();

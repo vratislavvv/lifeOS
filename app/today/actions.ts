@@ -137,10 +137,32 @@ export async function sendToLenna(
 
         if (toolName === 'complete_task') {
           const { taskId } = input as { taskId: string };
-          const task = todayTasks.find(t => t.id === taskId);
+          const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
           if (!task) return 'Task not found.';
           db.update(tasks).set({ done: true }).where(eq(tasks.id, taskId)).run();
           return `"${task.title}" marked as done.`;
+        }
+
+        if (toolName === 'edit_task') {
+          const { taskId, title, important, urgent, dueDate, groupId } = input as {
+            taskId: string; title?: string; important?: boolean; urgent?: boolean;
+            dueDate?: string; groupId?: string;
+          };
+          const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get();
+          if (!task) return 'Task not found.';
+          const updates: Record<string, unknown> = {};
+          if (title     !== undefined) updates.title     = title;
+          if (important !== undefined) updates.important = important;
+          if (urgent    !== undefined) updates.urgent    = urgent;
+          if (dueDate   !== undefined) updates.dueDate   = dueDate || null;
+          if (groupId   !== undefined) {
+            const validGroup = groups.find(g => g.id === groupId);
+            if (!validGroup) return 'Group not found.';
+            updates.groupId = groupId;
+          }
+          if (Object.keys(updates).length === 0) return 'No changes specified.';
+          db.update(tasks).set(updates).where(eq(tasks.id, taskId)).run();
+          return `Updated "${task.title}".`;
         }
 
         if (toolName === 'add_task') {
