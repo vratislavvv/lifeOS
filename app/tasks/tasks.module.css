@@ -61,7 +61,7 @@
   padding: 0 8px;
   border-radius: 6px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   text-decoration: none;
   transition: background 0.1s, color 0.1s;
@@ -76,7 +76,7 @@
   padding: 0 8px;
   border-radius: 6px;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-faint);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
@@ -92,42 +92,80 @@
   overflow: hidden;
 }
 .centerHeader {
-  padding: 14px 20px 0;
+  padding: 14px 20px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--hairline);
+}
+.centerTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 .centerTitle {
   font-size: 18px;
   font-weight: 500;
   color: var(--ink);
-  margin-bottom: 12px;
+  line-height: 1.2;
 }
-.groupTabs {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
+.centerSummary {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+  margin-top: 3px;
 }
-.groupTabs::-webkit-scrollbar { display: none; }
-.groupTab {
-  padding: 5px 12px;
-  border-radius: 6px 6px 0 0;
+.newTaskBtn {
+  padding: 7px 14px;
+  border-radius: 7px;
+  background: var(--ink);
   border: none;
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.newTaskBtn:hover { opacity: 0.85; }
+
+/* Filter bar */
+.filterBar {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.filterCaption {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.filterPills { display: flex; gap: 6px; flex-wrap: wrap; }
+.filterPill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid var(--hairline-strong);
   background: none;
   color: var(--ink-soft);
   font-size: 12px;
   font-family: var(--font-sans);
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.1s, color 0.1s;
-  border-bottom: 2px solid transparent;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
-.groupTab:hover { background: var(--surface); color: var(--ink); }
-.groupTabActive {
-  color: var(--ink);
-  font-weight: 500;
-  border-bottom-color: var(--ink);
-}
+.filterPill:hover { background: var(--surface-sunk); color: var(--ink); }
+.filterPillActive { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.filterPillActive:hover { background: var(--ink); opacity: 0.85; }
 .centerBody {
   flex: 1;
   overflow-y: auto;
@@ -139,35 +177,108 @@
   scrollbar-color: var(--hairline-strong) transparent;
 }
 
+/* Color dot (filter pills + group headers) */
+.colorDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* === Groups & tasks === */
-.group { display: flex; flex-direction: column; gap: 4px; }
+.group { display: flex; flex-direction: column; gap: 3px; }
+
+/* Nested sublist — indented with a left connector */
+.subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-left: 12px;
+  padding-left: 14px;
+  border-left: 1px solid var(--hairline);
+}
+.subgroup .groupName { font-size: 13px; font-weight: 500; }
+.subgroup .taskRow   { background: var(--bg); }
+
+/* Collapse animation via CSS grid trick */
+.groupTasksWrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.groupTasksCollapsed { grid-template-rows: 0fr; }
+.groupTasksInner {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 2px;
+}
 .groupHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 7px;
+  padding: 5px 2px;
+  margin-bottom: 2px;
 }
+.groupChevron {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.1s, transform 0.15s;
+}
+.groupChevron:hover { color: var(--ink-soft); }
+.groupChevronCollapsed { transform: rotate(-90deg); }
 .groupName {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
 }
 .groupCount {
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--ink-faint);
-  background: var(--surface-sunk);
-  border-radius: 3px;
-  padding: 1px 5px;
 }
+.groupAddBtn {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0;
+  transition: color 0.1s, opacity 0.1s;
+  flex-shrink: 0;
+}
+.groupHeader:hover .groupAddBtn { opacity: 1; }
+.groupAddBtn:hover { color: var(--ink); }
+.groupDeleteBtn {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0;
+  transition: color 0.1s, opacity 0.1s;
+  flex-shrink: 0;
+}
+.groupHeader:hover .groupDeleteBtn { opacity: 1; }
+.groupDeleteBtn:hover { color: var(--attention); }
 .groupEmpty {
   font-size: 12px;
   color: var(--ink-faint);
   font-family: var(--font-mono);
-  padding: 6px 0;
+  padding: 4px 0 4px 22px;
 }
 .emptyState {
   font-size: 13px;
@@ -178,9 +289,9 @@
 
 .taskRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 9px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 7px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -191,36 +302,40 @@
 .taskOverdue  { background: rgba(184,134,60,0.07); }
 .taskPending  { opacity: 0.5; pointer-events: none; }
 .taskCheck {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ink-faint);
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--hairline-strong);
   background: none;
   cursor: pointer;
   flex-shrink: 0;
   margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: border-color 0.1s, background 0.1s;
 }
-.taskCheck:hover  { border-color: var(--positive); }
-.taskCheckDone    { background: var(--positive); border-color: var(--positive); }
-.taskBody { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.taskTitle { font-size: 13px; color: var(--ink); line-height: 1.4; }
+.taskCheck:hover  { border-color: var(--ink-soft); }
+.taskCheckDone    { background: var(--ink); border-color: var(--ink); }
+.taskBody { flex: 1; min-width: 0; }
+.taskTitle { font-size: 13.5px; color: var(--ink); line-height: 1.4; }
 .taskDone  { text-decoration: line-through; color: var(--ink-faint); }
-.taskMeta  { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.taskDateBadge {
-  font-size: 9px;
+
+/* Trailing due-date pill */
+.duePill {
+  font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--positive);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  background: var(--surface-sunk);
+  border-radius: 5px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.taskDueDate {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--ink-faint);
+.duePillSoon {
+  background: rgba(184,134,60,0.12);
+  color: var(--attention);
 }
-.taskDueDateOverdue { color: var(--attention); }
 .taskDelete {
   background: none;
   border: none;
@@ -332,21 +447,42 @@
   50%       { opacity: 0.35; }
 }
 
-/* === Quick-add === */
-.quickAddBtn {
-  margin-top: 4px;
-  padding: 4px 8px;
+/* New sublist creation (inside a group) */
+.newSublistBtn {
+  align-self: flex-start;
+  padding: 3px 10px;
   background: none;
-  border: 1px dashed var(--hairline-strong);
-  border-radius: 6px;
+  border: none;
   color: var(--ink-faint);
   font-size: 11px;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
-  text-align: left;
+  opacity: 0;
+  transition: color 0.1s, opacity 0.1s;
+  margin-top: 2px;
 }
-.quickAddBtn:hover { color: var(--ink-soft); border-color: var(--ink-soft); }
+.groupTasksInner:hover .newSublistBtn { opacity: 1; }
+.newSublistBtn:hover { color: var(--ink-soft); }
+.newSublistRow { margin-left: 0; }
+
+/* New list creation */
+.newListBtn {
+  align-self: flex-start;
+  padding: 5px 12px;
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 6px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  margin-top: 4px;
+}
+.newListBtn:hover { color: var(--ink-soft); border-color: var(--ink-soft); }
+.newListRow { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+
+/* === Quick-add === */
 .quickAddRow {
   margin-top: 4px;
   display: flex;

@@ -90,6 +90,7 @@ export const inputs = sqliteTable("inputs", {
 
 export const taskGroups = sqliteTable("task_groups", {
   id:        text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  parentId:  text("parent_id"),                              // null = root group; set = sublist
   name:      text("name").notNull(),
   color:     text("color"),
   order:     integer("order").notNull().default(0),

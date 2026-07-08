@@ -4,6 +4,9 @@
 # Dependencies
 node_modules/
 
+# Design (pure claude design export files)
+design/
+
 # Next.js
 .next/
 out/

@@ -67,7 +67,7 @@
   padding: 0 8px;
   border-radius: 6px;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   gap: 7px;
   user-select: none;
@@ -114,7 +114,7 @@
   padding: 0 8px;
   border-radius: 6px;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--ink-faint);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;

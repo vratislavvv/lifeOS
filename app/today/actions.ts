@@ -108,7 +108,7 @@ export async function sendToLenna(
           cadencePerWeek: g.cadencePerWeek,
         })),
         goalSnapshots,
-        groups: groups.map(g => ({ id: g.id, name: g.name })),
+        groups: groups.map(g => ({ id: g.id, name: g.name, parentId: g.parentId ?? null })),
         tasks: todayTasks.map(t => ({ id: t.id, title: t.title, done: t.done })),
         upcomingTasks: upcomingTasks.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate!, done: t.done })),
         recentInputs: recentInputs.map(i => ({
@@ -124,16 +124,36 @@ export async function sendToLenna(
       },
       history,
       async (toolName, input) => {
+        if (toolName === 'delete_task_group') {
+          const { groupId } = input as { groupId: string };
+          const group = groups.find(g => g.id === groupId);
+          if (!group) return 'Group not found.';
+          if (group.isDefault) return 'Cannot delete the default Daily group.';
+          // recursively collect this group + all descendant group IDs
+          function descendants(id: string): string[] {
+            const kids = groups.filter(g => g.parentId === id).map(g => g.id);
+            return [id, ...kids.flatMap(descendants)];
+          }
+          const ids = descendants(groupId);
+          for (const id of ids) {
+            db.delete(tasks).where(eq(tasks.groupId, id)).run();
+            db.delete(taskGroups).where(eq(taskGroups.id, id)).run();
+          }
+          revalidatePath('/tasks');
+          return `Deleted "${group.name}" and its tasks.`;
+        }
+
         if (toolName === 'create_task_group') {
-          const { name, color } = input as { name: string; color?: string };
+          const { name, color, parentId } = input as { name: string; color?: string; parentId?: string };
           const trimmed = name.trim();
           if (!trimmed) return 'Group name cannot be empty.';
-          const existing = groups.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
-          if (existing) return `Group "${existing.name}" already exists (id: ${existing.id}).`;
-          const newGroup = { name: trimmed, color: color ?? null, order: groups.length };
+          if (parentId && !groups.find(g => g.id === parentId)) return `Parent group "${parentId}" not found.`;
+          const siblings = groups.filter(g => (g.parentId ?? null) === (parentId ?? null));
+          const newGroup = { name: trimmed, color: color ?? null, parentId: parentId ?? null, order: siblings.length };
           const inserted = db.insert(taskGroups).values(newGroup).returning().get();
           groups.push(inserted);
-          return `Group "${inserted.name}" created (id: ${inserted.id}). You can now add tasks to it.`;
+          const parentName = parentId ? groups.find(g => g.id === parentId)?.name : null;
+          return `"${inserted.name}" created${parentName ? ` as a sublist of "${parentName}"` : ''} (id: ${inserted.id}).`;
         }
 
         if (toolName === 'complete_task') {

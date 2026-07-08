@@ -12,7 +12,7 @@ type ChatContext = {
   vectors: { id: string; label: string }[];
   goals: { id: string; vectorId: string; description: string; type: string; cadencePerWeek: number | null }[];
   goalSnapshots?: { id: string; vectorId: string; c: number; e: number }[];
-  groups: { id: string; name: string }[];
+  groups: { id: string; name: string; parentId: string | null }[];
   tasks: { id: string; title: string; done: boolean }[];
   upcomingTasks?: { id: string; title: string; dueDate: string; done: boolean }[];
   recentInputs?: { date: string; vectorId: string; description: string; kind: string; occurredCount: number | null; value: number | null }[];
@@ -24,13 +24,25 @@ export type ToolHandler = (name: string, input: Record<string, unknown>) => Prom
 
 const TOOLS: Anthropic.Tool[] = [
   {
-    name: 'create_task_group',
-    description: 'Create a new task group so tasks can be organised under it',
+    name: 'delete_task_group',
+    description: 'Delete a task list or sublist and all its tasks. Use when the user asks to remove, delete, or get rid of a list.',
     input_schema: {
       type: 'object',
       properties: {
-        name:  { type: 'string', description: 'Display name for the group, e.g. "School"' },
-        color: { type: 'string', description: 'Optional hex color, e.g. "#7E6B8A"' },
+        groupId: { type: 'string', description: 'ID of the group to delete' },
+      },
+      required: ['groupId'],
+    },
+  },
+  {
+    name: 'create_task_group',
+    description: 'Create a new task list or sublist. Use parentId to nest it inside an existing list (e.g. a course inside "School").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:     { type: 'string', description: 'Display name, e.g. "IB002" or "History"' },
+        color:    { type: 'string', description: 'Optional hex color, e.g. "#7E6B8A"' },
+        parentId: { type: 'string', description: 'ID of the parent list to nest this under. Omit for a top-level list.' },
       },
       required: ['name'],
     },
@@ -121,7 +133,11 @@ export async function chatWithLenna(
     return `- [${v.id}] ${v.label}: ${status}${goalParts.length ? ' | ' + goalParts.join('; ') : ''}`;
   }).join('\n');
 
-  const groupLines = context.groups.map(g => `- ${g.id}: ${g.name}`).join('\n');
+  const groupLines = context.groups.map(g =>
+    g.parentId
+      ? `- ${g.id}: ${g.name} (sublist of ${g.parentId})`
+      : `- ${g.id}: ${g.name}`
+  ).join('\n');
 
   const pendingTasks = context.tasks.filter(t => !t.done);
   const taskLines = pendingTasks.length > 0

@@ -192,6 +192,10 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   if (!inputCols.has('occurred_count')) sqlite.exec(`ALTER TABLE inputs ADD COLUMN occurred_count REAL;`);
   if (!inputCols.has('duration_min'))   sqlite.exec(`ALTER TABLE inputs ADD COLUMN duration_min REAL;`);
 
+  // task_groups
+  const tgCols = cols(sqlite, 'task_groups');
+  if (!tgCols.has('parent_id')) sqlite.exec(`ALTER TABLE task_groups ADD COLUMN parent_id TEXT REFERENCES task_groups(id);`);
+
   // user
   const userCols = cols(sqlite, 'user');
   if (!userCols.has('date_of_birth')) sqlite.exec(`ALTER TABLE user ADD COLUMN date_of_birth TEXT;`);
