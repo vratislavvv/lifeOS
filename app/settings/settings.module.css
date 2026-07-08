@@ -1,7 +1,7 @@
 .shell { display:flex; height:100vh; width:100vw; overflow:hidden; background:var(--bg); font-family:var(--font-sans); }
 
 /* Sidebar — same tokens as other views */
-.sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; border-right:1px solid var(--hairline); }
+.sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; border-right:1px solid var(--hairline); background:var(--surface-sunk); }
 .sidebarBody { padding:11px 10px 0; display:flex; flex-direction:column; flex:1; overflow:hidden; }
 .sidebarLogo { display:flex; align-items:center; height:32px; padding:0 4px; margin-bottom:8px; font-size:13px; font-weight:500; color:var(--ink); }
 .navTree { margin-left:7px; position:relative; flex:1; }
