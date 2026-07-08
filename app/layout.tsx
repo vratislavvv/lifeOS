@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+
+export const dynamic = 'force-dynamic';
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
@@ -21,8 +25,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const u = db.select().from(user).get();
+  const dark = u?.darkMode ? 'dark' : '';
   return (
-    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable} ${dark}`.trim()}>
       <body>{children}</body>
     </html>
   );

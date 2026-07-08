@@ -22,6 +22,7 @@ export default function SettingsShell({ user }: { user: User }) {
   const [weekStart,  setWeekStart]  = useState(user.weekStart);
   const [timeFormat, setTimeFormat] = useState(user.timeFormat);
   const [lennaTone,  setLennaTone]  = useState(user.lennaTone);
+  const [darkMode,   setDarkMode]   = useState(user.darkMode);
   const [saved,      setSaved]      = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [pending,    startTransition] = useTransition();
@@ -36,6 +37,7 @@ export default function SettingsShell({ user }: { user: User }) {
     fd.set('weekStart',  weekStart);
     fd.set('timeFormat', timeFormat);
     fd.set('lennaTone',  lennaTone);
+    fd.set('darkMode',   String(darkMode));
     startTransition(async () => {
       const result = await saveSettings(fd);
       if (result.error) setError(result.error);
@@ -118,6 +120,19 @@ export default function SettingsShell({ user }: { user: User }) {
                       onClick={() => setTimeFormat(f)}
                     >
                       {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Theme</label>
+                <div className={styles.toggle}>
+                  {([false, true] as const).map(d => (
+                    <button key={String(d)} type="button"
+                      className={`${styles.toggleBtn} ${darkMode === d ? styles.toggleBtnActive : ''}`}
+                      onClick={() => setDarkMode(d)}
+                    >
+                      {d ? 'Dark' : 'Light'}
                     </button>
                   ))}
                 </div>

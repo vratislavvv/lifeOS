@@ -195,6 +195,7 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   // user
   const userCols = cols(sqlite, 'user');
   if (!userCols.has('date_of_birth')) sqlite.exec(`ALTER TABLE user ADD COLUMN date_of_birth TEXT;`);
+  if (!userCols.has('dark_mode'))    sqlite.exec(`ALTER TABLE user ADD COLUMN dark_mode INTEGER NOT NULL DEFAULT 0;`);
 
   // scores
   const scoreCols = cols(sqlite, 'scores');

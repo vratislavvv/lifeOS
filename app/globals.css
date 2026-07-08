@@ -24,6 +24,22 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+.dark {
+  --bg:              #1C1A16;
+  --surface:         #242220;
+  --surface-sunk:    #141210;
+
+  --ink:             #EDE9E0;
+  --ink-soft:        #A09C93;
+  --ink-faint:       #5E5C56;
+
+  --hairline:        rgba(240, 237, 228, 0.09);
+  --hairline-strong: rgba(240, 237, 228, 0.15);
+
+  --attention: #C8944A;
+  --positive:  #8E9A7B;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;

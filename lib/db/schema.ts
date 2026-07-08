@@ -11,6 +11,7 @@ export const user = sqliteTable("user", {
   lennaTone:     text("lenna_tone", { enum: ["warm", "neutral", "direct"] }).notNull().default("warm"),
   lennaAutonomy: text("lenna_autonomy", { enum: ["suggest", "draft", "act"] }).notNull().default("draft"),
   dateOfBirth:   text("date_of_birth"),                    // YYYY-MM-DD; used by Lenna to frame anchor time horizons by age
+  darkMode:      integer("dark_mode", { mode: "boolean" }).notNull().default(false),
   setupDone:     integer("setup_done", { mode: "boolean" }).notNull().default(false),
   createdAt:     integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
