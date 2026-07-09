@@ -63,9 +63,6 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
   const [taskPending, startTaskTransition] = useTransition();
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [qYear, qNum] = currentQuarter.split('-Q');
-  const quarterLabel = `Q${qNum} ${qYear}`;
-
   // Scroll chat to bottom on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });

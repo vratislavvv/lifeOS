@@ -3,7 +3,7 @@ import { getAI } from './client';
 import type { QuarterReport } from '@/lib/scoring/quarterReport';
 
 export type ChatMessage = { role: 'user' | 'lenna'; text: string };
-export type ToolHandler = (name: string, input: Record<string, unknown>) => Promise<string>;
+type ToolHandler = (name: string, input: Record<string, unknown>) => Promise<string>;
 
 type ReviewContext = {
   userName: string;

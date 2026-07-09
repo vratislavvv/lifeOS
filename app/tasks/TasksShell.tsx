@@ -4,23 +4,19 @@ import { useState, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { sendToLenna } from '../today/actions';
 import { toggleTask, deleteTask, addTask, createGroup, deleteGroup } from '../today/taskActions';
-import type { vectors, tasks, taskGroups, user } from '@/lib/db/schema';
+import type { tasks, taskGroups } from '@/lib/db/schema';
 import styles from './tasks.module.css';
 import LennaPanel from '@/components/LennaPanel';
 import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
 
-type User      = typeof user.$inferSelect;
-type Vector    = typeof vectors.$inferSelect;
 type Task      = typeof tasks.$inferSelect;
 type TaskGroup = typeof taskGroups.$inferSelect;
 type GroupNode = TaskGroup & { children: GroupNode[] };
 
 type Props = {
-  user:    User;
-  vectors: Vector[];
-  groups:  TaskGroup[];
-  tasks:   Task[];
-  today:   string;
+  groups: TaskGroup[];
+  tasks:  Task[];
+  today:  string;
 };
 
 const TODAY_STR = new Date().toLocaleDateString('en-CA');
@@ -46,7 +42,7 @@ function buildTree(groups: TaskGroup[]): GroupNode[] {
   return sort(roots);
 }
 
-export default function TasksShell({ user, vectors, groups, tasks: allTasks, today }: Props) {
+export default function TasksShell({ groups, tasks: allTasks, today }: Props) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed]           = useState<Set<string>>(new Set());
   const [inputText, setInputText]           = useState('');
@@ -58,8 +54,6 @@ export default function TasksShell({ user, vectors, groups, tasks: allTasks, tod
   const [newSublist, setNewSublist]         = useState<Record<string, string>>({});
   const [newListName, setNewListName]       = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  void vectors; void user;
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
 

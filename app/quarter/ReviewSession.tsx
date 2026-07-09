@@ -190,7 +190,6 @@ export default function ReviewSession({
   phase: initialPhase, report, scoreHistory, olDelta, closedStart, closedEnd,
   existingDraftGoals,
 }: Props) {
-  const firstName         = user.name.trim().split(' ')[0] || 'you';
   const selectedVectors   = vectors.map(v => ({ id: v.id, label: v.label }));
 
   const [phase,              setPhase]              = useState(initialPhase);
@@ -254,8 +253,6 @@ export default function ReviewSession({
 
   const [cqYear, cqNum] = closedQuarter.split('-Q');
   const [nqYear, nqNum] = nextQuarter.split('-Q');
-
-  void firstName; // used via lenna's greeting in reviewSessionTurn
 
   return (
     <div className={styles.shell}>

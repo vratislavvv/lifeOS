@@ -218,4 +218,4 @@ The "Confirm & Start →" button is disabled until Lenna explicitly calls `advan
 
 ### `lennaAutonomy` (§9.6)
 
-`suggest` / `draft` / `act` gate the goal-authoring instructions in all three session types via `goalDraftInstruction(autonomy)` helpers in `setupChat.ts`, `reviewChat.ts`, and `replanChat.ts`. The setting is read from the DB on every turn.
+`suggest` / `draft` / `act` gate the goal-authoring instructions in setup and review sessions via `goalDraftInstruction(autonomy)` helpers in `setupChat.ts` and `reviewChat.ts`. The replan flow uses the general `chatWithLenna` from `lib/llm/chat.ts`. The setting is read from the DB on every turn.

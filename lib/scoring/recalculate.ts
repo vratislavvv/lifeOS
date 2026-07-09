@@ -15,7 +15,7 @@ import { rankContributors, type ContributorEntry } from './explain';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ScoreResult = {
+type ScoreResult = {
   date:              string;
   operatingLevel:    number;
   operatingLevelRaw: number;
@@ -24,7 +24,7 @@ export type ScoreResult = {
   vectorBreakdown:   Record<string, number>;
 };
 
-export type CalibrationResult = { calibrating: true; reason: string };
+type CalibrationResult = { calibrating: true; reason: string };
 
 // ── recalculate ───────────────────────────────────────────────────────────────
 

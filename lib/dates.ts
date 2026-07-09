@@ -6,10 +6,6 @@ export function todayStr(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function currentQuarter(date?: Date): string {
-  const d = date ?? new Date();
-  return `${d.getFullYear()}-Q${Math.ceil((d.getMonth() + 1) / 3)}`;
-}
 
 export function quarterBounds(quarter: string): { start: string; end: string } {
   const [yearStr, qStr] = quarter.split('-Q');

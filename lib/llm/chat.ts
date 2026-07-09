@@ -20,7 +20,7 @@ type ChatContext = {
   justLogged: { vectorId: string; summary: string; progressDelta: number } | null;
 };
 
-export type ToolHandler = (name: string, input: Record<string, unknown>) => Promise<string>;
+type ToolHandler = (name: string, input: Record<string, unknown>) => Promise<string>;
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -73,7 +73,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'edit_task',
-    description: "Edit an existing task's title, priority flags, due date, or group. Only include the fields you want to change.",
+    description: "Edit an existing task's title, due date, or group. Only include the fields you want to change.",
     input_schema: {
       type: 'object',
       properties: {

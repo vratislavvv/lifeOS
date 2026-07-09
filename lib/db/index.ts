@@ -149,10 +149,8 @@ function migrate(sqlite: InstanceType<typeof Database>) {
     sqlite.exec(`ALTER TABLE tasks ADD COLUMN group_id TEXT REFERENCES task_groups(id);`);
     sqlite.exec(`UPDATE tasks SET group_id = '${DEFAULT_GROUP_ID}' WHERE group_id IS NULL;`);
   }
-  if (!taskCols.has('goal_id'))   sqlite.exec(`ALTER TABLE tasks ADD COLUMN goal_id TEXT REFERENCES goals(id);`);
-  if (!taskCols.has('important')) sqlite.exec(`ALTER TABLE tasks ADD COLUMN important INTEGER NOT NULL DEFAULT 0;`);
-  if (!taskCols.has('urgent'))    sqlite.exec(`ALTER TABLE tasks ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0;`);
-  if (!taskCols.has('due_date'))  sqlite.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT;`);
+  if (!taskCols.has('goal_id'))  sqlite.exec(`ALTER TABLE tasks ADD COLUMN goal_id TEXT REFERENCES goals(id);`);
+  if (!taskCols.has('due_date')) sqlite.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT;`);
 
   // goals
   const goalCols = cols(sqlite, 'goals');

@@ -22,7 +22,7 @@ export async function deleteTask(id: string) {
 export async function addTask(title: string, groupId: string, date: string): Promise<void> {
   const trimmed = title.trim();
   if (!trimmed) return;
-  db.insert(tasks).values({ title: trimmed, date, groupId, important: false, urgent: false, dueDate: null }).run();
+  db.insert(tasks).values({ title: trimmed, date, groupId, dueDate: null }).run();
   revalidatePath('/today');
   revalidatePath('/tasks');
 }

@@ -105,8 +105,6 @@ export const tasks = sqliteTable("tasks", {
   date:      text("date").notNull(),
   title:     text("title").notNull(),
   done:      integer("done", { mode: "boolean" }).notNull().default(false),
-  important: integer("important", { mode: "boolean" }).notNull().default(false),
-  urgent:    integer("urgent", { mode: "boolean" }).notNull().default(false),
   dueDate:   text("due_date"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
