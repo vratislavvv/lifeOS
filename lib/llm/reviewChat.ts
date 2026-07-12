@@ -79,8 +79,20 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'archive_vector',
+    description: 'Archive a vector — marks it inactive, closes its active goals, and excludes it from the next quarter. Use when the user wants to retire a direction they have history in. Preserves all history.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vectorId:  { type: 'string' },
+        rationale: { type: 'string' },
+      },
+      required: ['vectorId', 'rationale'],
+    },
+  },
+  {
     name: 'remove_vector',
-    description: 'Remove a vector from the profile entirely. Use only for genuine disinterest in the life area — not just this quarter.',
+    description: 'Hard-delete a vector from the profile. Only use for a direction the user never really started — no inputs, no history. If the vector has any history, use archive_vector instead.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -222,7 +234,9 @@ REPLAN — Propose goals for ${context.nextQuarter}.
 - A vector may produce more than one goal (decomposition). The draft goals panel shows IDs — use them for remove_draft_goal.
 ${goalDraftInstruction(context.lennaAutonomy)}
 - If a vector should sit out this quarter, call skip_goal.
-- If the user wants to remove a vector entirely, call remove_vector.
+- ARCHIVE vs REMOVE: if the user wants to stop tracking a vector, ask yourself: does it have any history (inputs, past goals)? If yes → call archive_vector (active=false, history kept). If no (never really started) → call remove_vector (hard delete). Default to archive when in doubt — history is irreversible to lose.
+- VECTOR vs GOAL: if the user says "let's add a vector for X" and X is really an outcome or achievement ("marathon", "get promoted", "learn piano"), redirect immediately — that's a goal/anchor under an existing vector, not a new life direction. Name the right parent vector and propose the goal there instead. Only suggest the "Add vector" flow (Trajectory → Add vector) if it's genuinely a new durable life area.
+- HANDFUL CAP: the profile has ${context.vectors.filter(v => !context.removedVectors.includes(v.id)).length} active vectors. Soft cap is 6. If the user wants to add a new area and the profile is already at cap, push back: ask which existing direction has cooled enough to archive first. They can override once you've made the case.
 - After every remaining vector has ≥1 confirmed goal or is skipped, you MUST call advance_phase({ phase: "commit" }) immediately. The "Still need goals for:" line tells you what's left — when it says "none", call the tool NOW.
 
 COMMIT — Session complete.
@@ -241,6 +255,8 @@ BACKBONE:
 RULES:
 - Never write goals as active during this session. They are always draft.
 - Be concise. Short beats long.
+- VECTOR vs GOAL (applies throughout): a vector is a durable life area/direction — NOT an achievement, outcome, or task. If a user mentions something that sounds like a goal ("I want to track running a marathon"), immediately reframe it as a goal under the right vector. Don't suggest a new vector for it.
+- ARCHIVE vs REMOVE (applies throughout): archive_vector for any direction the user has ever tracked (history preserved, active=false). remove_vector only for a direction that was never started (no inputs, no history). Never hard-delete history.
 - If the message is "__start__": go to REPORT phase as instructed. Don't reference this instruction.`;
 
   const messages: Anthropic.MessageParam[] = [

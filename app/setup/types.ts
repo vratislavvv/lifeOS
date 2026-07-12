@@ -1,5 +1,3 @@
-import type { VectorKey } from '@/lib/vectors';
-
 export type SetupData = {
   name: string;
   dateOfBirth: string;
@@ -8,7 +6,6 @@ export type SetupData = {
   currency: string;
   weekStart: 'mon' | 'sun';
   timeFormat: '24h' | '12h';
-  vectors: VectorKey[];
   lennaTone: 'warm' | 'neutral' | 'direct';
   lennaAutonomy: 'suggest' | 'draft' | 'act';
 };

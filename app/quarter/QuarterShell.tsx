@@ -20,10 +20,21 @@ type User     = typeof user.$inferSelect;
 type Vector   = typeof vectors.$inferSelect;
 type GoalCard = typeof goals.$inferSelect & { c: number; e: number; gap: number };
 
+type AnchorRow = {
+  id:          string;
+  vectorId:    string;
+  description: string;
+  targetAge:   number | null;
+  vectorLabel: string;
+  vectorColor: string;
+};
+
 type Props = {
   user:             User;
   vectors:          Vector[];
   goalCards:        GoalCard[];
+  anchorRows:       AnchorRow[];
+  pendingVectors:   Vector[];
   latestScore:      typeof scores.$inferSelect | null;
   quarter:          string;
   currentQuarter:   string;
@@ -217,7 +228,7 @@ function VectorPaceRow({ row, isLast }: { row: VectorRow; isLast: boolean }) {
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export default function QuarterShell({
-  user, vectors, goalCards, latestScore,
+  user, vectors, goalCards, anchorRows, pendingVectors, latestScore,
   quarter, currentQuarter, prevQuarter, nextQuarter,
   tau, quarterStart, quarterEnd, quarterIsoStart,
   daysLeft, hasData, reviewPending, closedQuarter, pastQuarters,
@@ -246,7 +257,7 @@ export default function QuarterShell({
       if (result.error) { setInputError(result.error); setMessages(m => m.slice(0, -1)); }
       else if (result.reply) {
         setMessages(m => [...m, { role: 'lenna', text: result.reply! }]);
-        if (result.justLogged) router.refresh();
+        if (result.justLogged || result.needsRefresh) router.refresh();
       }
     });
   }
@@ -256,7 +267,7 @@ export default function QuarterShell({
   const olValue     = latestScore ? Math.round(latestScore.operatingLevel) : null;
   const [axis0, axisMid, axis1] = axisLabels(quarter, quarterStart, quarterEnd);
   const tauPct      = Math.round(tau * 100);
-  const vRows       = buildVectorRows(vectors, goalCards);
+  const vRows       = buildVectorRows(vectors.filter(v => v.active), goalCards);
 
   function navigateTo(q: string) {
     if (q === currentQuarter) router.push('/quarter');
@@ -274,10 +285,10 @@ export default function QuarterShell({
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <Link href="/today" className={styles.navLink}>Today</Link>
+              <Link href="/today" className={styles.navLink}>Dashboard</Link>
             </div>
             <div className={styles.navItem}>
-              <Link href="/quarter" className={`${styles.navLink} ${styles.navLinkActive}`}>Quarter</Link>
+              <Link href="/quarter" className={`${styles.navLink} ${styles.navLinkActive}`}>Trajectory</Link>
             </div>
             <div className={styles.navItem}>
               <Link href="/tasks" className={styles.navLink}>Tasks</Link>
@@ -359,9 +370,18 @@ export default function QuarterShell({
               )}
             </div>
             {isCurrentQ && (
-              <Link href="/quarter/replan" className={styles.headerRevBtn}>
-                Revision →
-              </Link>
+              <>
+                <button
+                  className={styles.headerAddVectorBtn}
+                  onClick={() => setInputText("I'd like to add a new vector")}
+                  title="Pre-fills the Lenna chat below"
+                >
+                  + Add vector
+                </button>
+                <Link href="/quarter/replan" className={styles.headerRevBtn}>
+                  Revision →
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -380,7 +400,7 @@ export default function QuarterShell({
               {/* Quarter progress */}
               <div className={styles.progressSection}>
                 <div className={styles.progressLabelRow}>
-                  <span className={styles.progressLabel}>Quarter progress</span>
+                  <span className={styles.progressLabel}>Trajectory progress</span>
                   <span className={styles.progressRight}>
                     <span className={styles.progressPct}>{tauPct}%</span>
                     {isCurrentQ && (
@@ -411,6 +431,44 @@ export default function QuarterShell({
                   ))}
                 </div>
               </div>
+
+              {/* Long-term anchors + pending vectors without anchors */}
+              {(anchorRows.length > 0 || pendingVectors.length > 0) && (
+                <div className={styles.vectorsSection} style={{ marginTop: 24 }}>
+                  <div className={styles.vectorsSectionHead}>
+                    <span className={styles.vectorsSectionTitle}>Long-term</span>
+                    <span className={styles.vectorsSectionHint}>anchors · where each vector is headed</span>
+                  </div>
+                  <div className={styles.vectorRows}>
+                    {anchorRows.map((a, i) => {
+                      const isLast = i === anchorRows.length - 1 && pendingVectors.length === 0;
+                      return (
+                        <div key={a.id} className={`${styles.vRow} ${isLast ? styles.vRowLast : ''}`}>
+                          <div className={styles.vRowName}>
+                            <span className={styles.vRowSwatch} style={{ background: a.vectorColor }} />
+                            <span className={styles.vRowLabel}>{a.vectorLabel}</span>
+                          </div>
+                          <div className={styles.anchorDesc}>{a.description}</div>
+                          {a.targetAge != null && (
+                            <div className={styles.anchorAge}>by {a.targetAge}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {pendingVectors.map((v, i) => (
+                      <div key={v.id} className={`${styles.vRow} ${i === pendingVectors.length - 1 ? styles.vRowLast : ''}`}>
+                        <div className={styles.vRowName}>
+                          <span className={styles.vRowSwatch} style={{ background: v.color }} />
+                          <span className={styles.vRowLabel}>{v.label}</span>
+                        </div>
+                        <div className={styles.anchorDesc} style={{ fontStyle: 'italic', color: 'var(--ink-faint)' }}>
+                          anchor pending — tell Lenna the long-term destination
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

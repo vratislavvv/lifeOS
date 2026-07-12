@@ -11,18 +11,33 @@ export const user = sqliteTable("user", {
   lennaTone:     text("lenna_tone", { enum: ["warm", "neutral", "direct"] }).notNull().default("warm"),
   lennaAutonomy: text("lenna_autonomy", { enum: ["suggest", "draft", "act"] }).notNull().default("draft"),
   dateOfBirth:   text("date_of_birth"),                    // YYYY-MM-DD; used by Lenna to frame anchor time horizons by age
-  darkMode:      integer("dark_mode", { mode: "boolean" }).notNull().default(false),
-  setupDone:     integer("setup_done", { mode: "boolean" }).notNull().default(false),
-  createdAt:     integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  darkMode:                    integer("dark_mode", { mode: "boolean" }).notNull().default(false),
+  setupDone:                   integer("setup_done", { mode: "boolean" }).notNull().default(false),
+  googleRefreshToken:       text("google_refresh_token"),
+  googleConnectedAt:        text("google_connected_at"),
+  googleHealthRefreshToken: text("google_health_refresh_token"),
+  googleHealthConnectedAt:  text("google_health_connected_at"),
+  healthSyncToken:     text("health_sync_token"),
+  createdAt:                   integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+export const healthData = sqliteTable("health_data", {
+  date:      text("date").primaryKey(),   // YYYY-MM-DD
+  steps:     integer("steps"),
+  updatedAt: text("updated_at"),
 });
 
 export const vectors = sqliteTable("vectors", {
-  id:        text("id").primaryKey(),
-  label:     text("label").notNull(),
-  color:     text("color").notNull(),
-  order:     integer("order").notNull().default(0),
-  active:    integer("active", { mode: "boolean" }).notNull().default(true),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  id:          text("id").primaryKey(),
+  label:       text("label").notNull(),
+  color:       text("color").notNull(),
+  order:       integer("order").notNull().default(0),
+  active:      integer("active", { mode: "boolean" }).notNull().default(true),
+  createdVia:  text("created_via", { enum: ["preset", "custom"] }).notNull().default("preset"),
+  icon:        text("icon"),
+  description: text("description"),
+  weight:      real("weight").notNull().default(1),
+  createdAt:   integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 export const anchors = sqliteTable("anchors", {

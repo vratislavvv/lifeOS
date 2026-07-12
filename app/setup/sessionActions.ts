@@ -1,15 +1,14 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { user, vectors, anchors, goals, sessions } from '@/lib/db/schema';
-import { VECTORS } from '@/lib/vectors';
 import { chatDuringSetup, type ChatMessage } from '@/lib/llm/setupChat';
 import { quarterBounds } from '@/lib/dates';
 import type { SetupData } from './types';
 
-// ── 1. Bootstrap: write user + vectors, open session ─────────────────────────
+// ── 1. Bootstrap: write user, open session ────────────────────────────────────
 
 export async function startSetupSession(
   data: SetupData
@@ -45,19 +44,6 @@ export async function startSetupSession(
     },
   }).run();
 
-  // Write vectors (replace existing)
-  data.vectors.forEach((key, i) => {
-    db.insert(vectors).values({
-      id:    key,
-      label: VECTORS[key].label,
-      color: VECTORS[key].color,
-      order: i,
-    }).onConflictDoUpdate({
-      target: vectors.id,
-      set: { label: VECTORS[key].label, color: VECTORS[key].color, order: i },
-    }).run();
-  });
-
   // Clean up any previous draft goals + orphaned open sessions for this quarter
   db.delete(goals)
     .where(and(eq(goals.quarter, quarter), eq(goals.status, 'draft')))
@@ -82,6 +68,7 @@ export async function startSetupSession(
 type TurnResult = {
   reply:               string;
   phase:               string;
+  vectors:             { id: string; label: string; color: string }[];
   anchors:             { id: string; vectorId: string; description: string; headlineMetric: string | null; targetAge: number | null }[];
   draftGoals:          { id: string; vectorId: string; description: string; type: string; startValue: number | null; targetValue: number | null; cadencePerWeek: number | null; paceShape: string }[];
   skippedGoalVectors:  string[];
@@ -94,26 +81,33 @@ export async function setupSessionTurn(
   history:   ChatMessage[],
   sessionId: string,
   quarter:   string,
-  selectedVectors: { id: string; label: string }[],
   priorSkippedGoalVectors: string[] = [],
   priorRemovedVectors: string[] = []
 ): Promise<TurnResult> {
   const session = db.select().from(sessions).where(eq(sessions.id, sessionId)).get();
-  if (!session) return { reply: '', phase: 'orient', anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: 'Session not found.' };
+  if (!session) return { reply: '', phase: 'orient', vectors: [], anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: 'Session not found.' };
 
   const u = db.select().from(user).get();
 
-  // Load anchors for any of the selected vectors
+  const skippedGoalVectors: string[] = [...priorSkippedGoalVectors];
+  const removedVectors: string[] = [...priorRemovedVectors];
+
+  // Load current vectors from DB (what Lenna has created so far)
+  const currentVectors = db.select().from(vectors).orderBy(asc(vectors.order)).all()
+    .filter(v => v.active && !removedVectors.includes(v.id))
+    .map(v => ({ id: v.id, label: v.label, color: v.color }));
+
+  const currentVectorIds = new Set(currentVectors.map(v => v.id));
+
+  // Load anchors for current vectors
   const currentAnchors = db.select().from(anchors).all()
-    .filter(a => selectedVectors.some(v => v.id === a.vectorId));
+    .filter(a => currentVectorIds.has(a.vectorId));
 
   const currentDraftGoals = db.select().from(goals)
     .where(and(eq(goals.quarter, quarter), eq(goals.status, 'draft')))
     .all();
 
   let finalPhase = session.phase;
-  const skippedGoalVectors: string[] = [...priorSkippedGoalVectors];
-  const removedVectors: string[] = [...priorRemovedVectors];
 
   let reply: string;
   try {
@@ -127,7 +121,7 @@ export async function setupSessionTurn(
         lennaAutonomy: (u?.lennaAutonomy ?? 'draft') as 'suggest' | 'draft' | 'act',
         phase:         session.phase,
         quarter,
-        vectors:    selectedVectors.filter(v => !removedVectors.includes(v.id)),
+        vectors:    currentVectors.map(v => ({ id: v.id, label: v.label })),
         anchors:    currentAnchors.map(a => ({ vectorId: a.vectorId, description: a.description, targetAge: a.targetAge })),
         draftGoals: currentDraftGoals.map(g => ({ id: g.id, vectorId: g.vectorId, description: g.description, type: g.type })),
         skippedGoalVectors,
@@ -135,15 +129,37 @@ export async function setupSessionTurn(
       },
       history,
       async (toolName, input) => {
+        if (toolName === 'create_vector') {
+          const { label, color, description } = input as { label: string; color: string; description?: string };
+          const trimmed = label.trim();
+          if (!trimmed) return 'Label cannot be empty.';
+          const allVecs = db.select().from(vectors).all();
+          const activeCount = allVecs.filter(v => v.active).length;
+          if (activeCount >= 6) return `Already at ${activeCount} active vectors (cap is 6).`;
+          // Slug from label with collision suffix
+          let slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+          const existing = allVecs.map(v => v.id);
+          if (existing.includes(slug)) {
+            let i = 2;
+            while (existing.includes(`${slug}-${i}`)) i++;
+            slug = `${slug}-${i}`;
+          }
+          db.insert(vectors).values({
+            id: slug, label: trimmed, color: color ?? '#7E8A6B',
+            description: description ?? null,
+            order: allVecs.length,
+            active: true,
+            createdVia: 'custom',
+          }).run();
+          return `Created vector "${trimmed}" (id: ${slug}).`;
+        }
+
         if (toolName === 'propose_anchor') {
           const { vectorId, description, headlineMetric, targetAge, rationale } =
             input as { vectorId: string; description: string; headlineMetric?: string; targetAge?: number; rationale: string };
 
           // Upsert — replace if Lenna revises
-          const existing = db.select().from(anchors).where(eq(anchors.vectorId, vectorId)).get();
-          if (existing) {
-            db.delete(anchors).where(eq(anchors.id, existing.id)).run();
-          }
+          db.delete(anchors).where(eq(anchors.vectorId, vectorId)).run();
           db.insert(anchors).values({
             vectorId,
             description,
@@ -217,14 +233,11 @@ export async function setupSessionTurn(
 
         if (toolName === 'remove_vector') {
           const { vectorId } = input as { vectorId: string; rationale: string };
-          // Remove anchor if any
-          const existingAnchor = db.select().from(anchors).where(eq(anchors.vectorId, vectorId)).get();
-          if (existingAnchor) db.delete(anchors).where(eq(anchors.id, existingAnchor.id)).run();
-          // Remove draft goals if any
+          // Remove anchor and draft goals, then delete the vector
+          db.delete(anchors).where(eq(anchors.vectorId, vectorId)).run();
           db.delete(goals)
             .where(and(eq(goals.vectorId, vectorId), eq(goals.status, 'draft')))
             .run();
-          // Remove the vector itself
           db.delete(vectors).where(eq(vectors.id, vectorId)).run();
           removedVectors.push(vectorId);
           return `${vectorId} removed from your vectors.`;
@@ -242,12 +255,15 @@ export async function setupSessionTurn(
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    return { reply: '', phase: finalPhase, anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: String(msg) };
+    return { reply: '', phase: finalPhase, vectors: [], anchors: [], draftGoals: [], skippedGoalVectors: [], removedVectors: [], error: String(msg) };
   }
 
   // Reload state after tools ran
+  const updatedVectors = db.select().from(vectors).orderBy(asc(vectors.order)).all()
+    .filter(v => v.active && !removedVectors.includes(v.id));
+  const updatedVectorIds = new Set(updatedVectors.map(v => v.id));
   const updatedAnchors = db.select().from(anchors).all()
-    .filter(a => selectedVectors.some(v => v.id === a.vectorId));
+    .filter(a => updatedVectorIds.has(a.vectorId));
   const updatedGoals = db.select().from(goals)
     .where(and(eq(goals.quarter, quarter), eq(goals.status, 'draft')))
     .all();
@@ -255,6 +271,7 @@ export async function setupSessionTurn(
   return {
     reply,
     phase:              finalPhase,
+    vectors:            updatedVectors.map(v => ({ id: v.id, label: v.label, color: v.color })),
     anchors:            updatedAnchors.map(a => ({
       id: a.id, vectorId: a.vectorId, description: a.description,
       headlineMetric: a.headlineMetric, targetAge: a.targetAge,

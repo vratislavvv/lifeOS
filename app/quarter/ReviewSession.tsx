@@ -263,10 +263,10 @@ export default function ReviewSession({
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <Link href="/today" className={styles.navLink}>Today</Link>
+              <Link href="/today" className={styles.navLink}>Dashboard</Link>
             </div>
             <div className={styles.navItem}>
-              <Link href="/quarter" className={`${styles.navLink} ${styles.navLinkActive}`}>Quarter</Link>
+              <Link href="/quarter" className={`${styles.navLink} ${styles.navLinkActive}`}>Trajectory</Link>
             </div>
             <div className={styles.navItem}>
               <Link href="/tasks" className={styles.navLink}>Tasks</Link>

@@ -1,14 +1,18 @@
 'use client';
 
 import { useState, useTransition, useRef, useEffect } from 'react';
-import { VECTORS } from '@/lib/vectors';
-import type { VectorKey } from '@/lib/vectors';
 import { startSetupSession, setupSessionTurn, commitSetupSession } from './sessionActions';
 import type { ChatMessage } from '@/lib/llm/setupChat';
 import type { SetupData } from './types';
 import { LennaText } from '@/lib/renderMarkdown';
 import { goalSubline } from '@/lib/ui/goalSubline';
 import styles from './session.module.css';
+
+type Vector = {
+  id: string;
+  label: string;
+  color: string;
+};
 
 type Anchor = {
   id: string;
@@ -34,12 +38,10 @@ type Props = {
 };
 
 export default function SetupSession({ data }: Props) {
-  const firstName      = data.name.trim().split(' ')[0] || 'you';
-  const selectedVectors = data.vectors.map(k => ({ id: k, label: VECTORS[k].label }));
-
   const [sessionId,          setSessionId]          = useState<string | null>(null);
   const [quarter,            setQuarter]            = useState('');
   const [phase,              setPhase]              = useState('orient');
+  const [vectors,            setVectors]            = useState<Vector[]>([]);
   const [anchors,            setAnchors]            = useState<Anchor[]>([]);
   const [draftGoals,         setDraftGoals]         = useState<DraftGoal[]>([]);
   const [skippedGoalVectors, setSkippedGoalVectors] = useState<string[]>([]);
@@ -63,9 +65,10 @@ export default function SetupSession({ data }: Props) {
       setQuarter(q);
 
       // Lenna opens the conversation
-      const result = await setupSessionTurn('__start__', [], sid, q, selectedVectors, [], []);
-      if (result.reply) setMessages([{ role: 'lenna', text: result.reply }]);
-      if (result.phase) setPhase(result.phase);
+      const result = await setupSessionTurn('__start__', [], sid, q, [], []);
+      if (result.reply)   setMessages([{ role: 'lenna', text: result.reply }]);
+      if (result.phase)   setPhase(result.phase);
+      if (result.vectors) setVectors(result.vectors);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -82,7 +85,7 @@ export default function SetupSession({ data }: Props) {
     setInputText('');
 
     startTransition(async () => {
-      const result = await setupSessionTurn(text, prevMessages, sessionId, quarter, selectedVectors, skippedGoalVectors, removedVectors);
+      const result = await setupSessionTurn(text, prevMessages, sessionId, quarter, skippedGoalVectors, removedVectors);
       if (result.error) {
         setInputError(result.error);
         setMessages(m => m.slice(0, -1));
@@ -90,6 +93,7 @@ export default function SetupSession({ data }: Props) {
       }
       if (result.reply)      setMessages(m => [...m, { role: 'lenna', text: result.reply }]);
       if (result.phase)      setPhase(result.phase);
+      if (result.vectors)    setVectors(result.vectors);
       if (result.anchors)    setAnchors(result.anchors);
       if (result.draftGoals) setDraftGoals(result.draftGoals);
       setSkippedGoalVectors(result.skippedGoalVectors);
@@ -167,16 +171,18 @@ export default function SetupSession({ data }: Props) {
         <div className={styles.draftsHeader}>This quarter</div>
 
         <div className={styles.draftsList}>
-          {data.vectors
-            .filter(key => !removedVectors.includes(key))
-            .map(key => {
-              const v       = VECTORS[key as VectorKey];
-              const anchor      = anchors.find(a => a.vectorId === key);
-              const vectorGoals = draftGoals.filter(g => g.vectorId === key);
-              const skipped     = skippedGoalVectors.includes(key);
+          {vectors.length === 0 && (
+            <div className={styles.draftEmpty}>Lenna will add your vectors here as you discuss them.</div>
+          )}
+          {vectors
+            .filter(v => !removedVectors.includes(v.id))
+            .map(v => {
+              const anchor      = anchors.find(a => a.vectorId === v.id);
+              const vectorGoals = draftGoals.filter(g => g.vectorId === v.id);
+              const skipped     = skippedGoalVectors.includes(v.id);
 
               return (
-                <div key={key} className={styles.draftVector}>
+                <div key={v.id} className={styles.draftVector}>
                   <div className={styles.draftVectorHead}>
                     <span className={styles.draftDot} style={{ background: v.color }} />
                     <span className={styles.draftVectorName}>{v.label}</span>

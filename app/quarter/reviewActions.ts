@@ -1,9 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { user, vectors, anchors, goals, sessions } from '@/lib/db/schema';
+import { user, vectors, anchors, goals, sessions, inputs } from '@/lib/db/schema';
 import { computeQuarterReport } from '@/lib/scoring/quarterReport';
 import { chatDuringReview, type ChatMessage } from '@/lib/llm/reviewChat';
 import { quarterBounds, nextQuarterOf } from '@/lib/dates';
@@ -126,13 +126,34 @@ export async function reviewSessionTurn(
           return `Goal for ${vectorId} skipped this quarter.`;
         }
 
+        if (toolName === 'archive_vector') {
+          const { vectorId } = input as { vectorId: string };
+          // Close all active goals for this vector
+          db.update(goals).set({ status: 'abandoned' })
+            .where(and(eq(goals.vectorId, vectorId), eq(goals.status, 'active'))).run();
+          // Also remove any draft goals for next quarter
+          db.delete(goals)
+            .where(and(eq(goals.vectorId, vectorId), eq(goals.status, 'draft'))).run();
+          db.update(vectors).set({ active: false }).where(eq(vectors.id, vectorId)).run();
+          if (!removedVectors.includes(vectorId)) removedVectors.push(vectorId);
+          return `${vectorId} archived — history preserved, excluded from next quarter.`;
+        }
+
         if (toolName === 'remove_vector') {
           const { vectorId } = input as { vectorId: string };
-          const existing = db.select().from(anchors).where(eq(anchors.vectorId, vectorId)).get();
-          if (existing) db.delete(anchors).where(eq(anchors.id, existing.id)).run();
+          // Safety: refuse hard-delete if the vector has any logged inputs or non-draft goals
+          const hasInputs = db.select().from(inputs).where(eq(inputs.vectorId, vectorId)).get();
+          const hasHistory = db.select().from(goals)
+            .where(and(eq(goals.vectorId, vectorId), gt(goals.id, '')))
+            .all()
+            .some(g => g.status !== 'draft');
+          if (hasInputs || hasHistory) {
+            return `Cannot hard-delete "${vectorId}" — it has logged history. Use archive_vector instead to retire it gracefully.`;
+          }
+          db.delete(anchors).where(eq(anchors.vectorId, vectorId)).run();
           db.delete(goals).where(and(eq(goals.vectorId, vectorId), eq(goals.status, 'draft'))).run();
           db.delete(vectors).where(eq(vectors.id, vectorId)).run();
-          removedVectors.push(vectorId);
+          if (!removedVectors.includes(vectorId)) removedVectors.push(vectorId);
           return `${vectorId} removed from profile.`;
         }
 

@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { VECTOR_KEYS } from '@/lib/vectors';
 import type { SetupData } from './types';
 import styles from './setup.module.css';
 import Rail from './Rail';
 import SetupSession from './SetupSession';
 import StepYou from './steps/StepYou';
-import StepVectors from './steps/StepVectors';
 import StepConnect from './steps/StepConnect';
 import StepLenna from './steps/StepLenna';
+
+const STORAGE_KEY = 'lifeos-setup';
 
 const INITIAL: SetupData = {
   name:          '',
@@ -19,29 +19,66 @@ const INITIAL: SetupData = {
   currency:      'EUR',
   weekStart:     'mon',
   timeFormat:    '24h',
-  vectors:       [...VECTOR_KEYS],
   lennaTone:     'warm',
   lennaAutonomy: 'draft',
 };
 
-// Steps 1–4 use the Rail + step pane layout.
-// Step 5 is the full-screen Lenna setup session.
-export default function SetupFlow() {
+type Props = {
+  googleConnected?: boolean;
+  googleHealthConnected?: boolean;
+};
+
+// Steps 1–3 use the Rail + step pane layout.
+// Step 4 is the full-screen Lenna setup session.
+export default function SetupFlow({ googleConnected = false, googleHealthConnected = false }: Props) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<SetupData>(INITIAL);
 
+  // On mount: restore step + data from localStorage (survives the OAuth redirect)
   useEffect(() => {
+    let savedStep = 0;
+    let savedData: Partial<SetupData> = {};
     try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      setData(d => ({ ...d, timezone: tz }));
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.step >= 1 && parsed.step <= 3) savedStep = parsed.step;
+        if (parsed.data) savedData = parsed.data;
+      }
     } catch {}
+
+    // Auto-detect timezone only if not already saved
+    let detectedTz = '';
+    try { detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch {}
+
+    setData(d => ({
+      ...d,
+      ...(detectedTz && !savedData.timezone ? { timezone: detectedTz } : {}),
+      ...savedData,
+    }));
+    if (savedStep > 0) setStep(savedStep);
   }, []);
+
+  // Persist step + data whenever they change (steps 1–3 only)
+  useEffect(() => {
+    if (step < 1 || step > 3) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, data }));
+    } catch {}
+  }, [step, data]);
 
   function onChange(patch: Partial<SetupData>) {
     setData(d => ({ ...d, ...patch }));
   }
 
-  const goNext = () => setStep(s => Math.min(s + 1, 5));
+  const goNext = () => setStep(s => {
+    const next = Math.min(s + 1, 4);
+    if (next === 4) {
+      // Lenna session is starting — data is about to be committed to DB
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
+    return next;
+  });
   const goBack = () => setStep(s => Math.max(s - 1, 0));
 
   // Welcome screen
@@ -58,20 +95,10 @@ export default function SetupFlow() {
             Let's build your<br />operating system.
           </h1>
           <p className={styles.welcomeSub}>
-            Four quick preferences, then Lenna takes over — she'll establish
-            your vectors, nail your long-term anchors, and draft this quarter's
-            goals with you.
+            Three quick preferences, then Lenna takes over — she'll help you
+            discover your vectors, nail your long-term anchors, and draft this
+            quarter's goals with you.
           </p>
-          <div className={styles.vectorChips}>
-            {VECTOR_KEYS.map(k => (
-              <span
-                key={k}
-                className={styles.vectorChip}
-                style={{ background: `var(--v-${k})` }}
-              />
-            ))}
-            <span className={styles.vectorChipsLabel}>your six possible vectors</span>
-          </div>
           <div className={styles.welcomeActions}>
             <button
               type="button"
@@ -87,22 +114,21 @@ export default function SetupFlow() {
     );
   }
 
-  // Full-screen Lenna session (step 5)
-  if (step === 5) {
+  // Full-screen Lenna session (step 4)
+  if (step === 4) {
     return <SetupSession data={data} />;
   }
 
-  // Steps 1–4: Rail + content
+  // Steps 1–3: Rail + content
   const stepProps = { data, onChange, onNext: goNext, onBack: goBack };
 
   return (
     <div className={styles.stepScreen}>
       <Rail currentStep={step} />
       <main className={styles.content}>
-        {step === 1 && <StepYou      {...stepProps} />}
-        {step === 2 && <StepVectors  {...stepProps} />}
-        {step === 3 && <StepConnect  {...stepProps} />}
-        {step === 4 && <StepLenna    {...stepProps} />}
+        {step === 1 && <StepYou     {...stepProps} />}
+        {step === 2 && <StepConnect {...stepProps} googleConnected={googleConnected} googleHealthConnected={googleHealthConnected} />}
+        {step === 3 && <StepLenna   {...stepProps} />}
       </main>
     </div>
   );

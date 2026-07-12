@@ -143,6 +143,13 @@ function migrate(sqlite: InstanceType<typeof Database>) {
   `);
 
   // ── Additive upgrades for existing DBs ───────────────────────────────────────
+  // vectors
+  const vecCols = cols(sqlite, 'vectors');
+  if (!vecCols.has('created_via'))  sqlite.exec(`ALTER TABLE vectors ADD COLUMN created_via TEXT NOT NULL DEFAULT 'preset';`);
+  if (!vecCols.has('icon'))         sqlite.exec(`ALTER TABLE vectors ADD COLUMN icon TEXT;`);
+  if (!vecCols.has('description'))  sqlite.exec(`ALTER TABLE vectors ADD COLUMN description TEXT;`);
+  if (!vecCols.has('weight'))       sqlite.exec(`ALTER TABLE vectors ADD COLUMN weight REAL NOT NULL DEFAULT 1;`);
+
   // tasks
   const taskCols = cols(sqlite, 'tasks');
   if (!taskCols.has('group_id')) {
@@ -196,8 +203,33 @@ function migrate(sqlite: InstanceType<typeof Database>) {
 
   // user
   const userCols = cols(sqlite, 'user');
-  if (!userCols.has('date_of_birth')) sqlite.exec(`ALTER TABLE user ADD COLUMN date_of_birth TEXT;`);
-  if (!userCols.has('dark_mode'))    sqlite.exec(`ALTER TABLE user ADD COLUMN dark_mode INTEGER NOT NULL DEFAULT 0;`);
+  if (!userCols.has('date_of_birth'))                  sqlite.exec(`ALTER TABLE user ADD COLUMN date_of_birth TEXT;`);
+  if (!userCols.has('dark_mode'))                      sqlite.exec(`ALTER TABLE user ADD COLUMN dark_mode INTEGER NOT NULL DEFAULT 0;`);
+  // migrate old per-service columns to unified google token
+  if (!userCols.has('google_refresh_token')) {
+    sqlite.exec(`ALTER TABLE user ADD COLUMN google_refresh_token TEXT;`);
+    if (userCols.has('google_calendar_refresh_token')) {
+      sqlite.exec(`UPDATE user SET google_refresh_token = google_calendar_refresh_token WHERE google_calendar_refresh_token IS NOT NULL;`);
+    }
+  }
+  if (!userCols.has('google_connected_at')) {
+    sqlite.exec(`ALTER TABLE user ADD COLUMN google_connected_at TEXT;`);
+    if (userCols.has('google_calendar_connected_at')) {
+      sqlite.exec(`UPDATE user SET google_connected_at = google_calendar_connected_at WHERE google_calendar_connected_at IS NOT NULL;`);
+    }
+  }
+  if (!userCols.has('google_health_refresh_token')) sqlite.exec(`ALTER TABLE user ADD COLUMN google_health_refresh_token TEXT;`);
+  if (!userCols.has('google_health_connected_at'))  sqlite.exec(`ALTER TABLE user ADD COLUMN google_health_connected_at TEXT;`);
+  if (!userCols.has('health_sync_token'))            sqlite.exec(`ALTER TABLE user ADD COLUMN health_sync_token TEXT;`);
+
+  // health_data
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS health_data (
+      date TEXT PRIMARY KEY,
+      steps INTEGER,
+      updated_at TEXT
+    );
+  `);
 
   // scores
   const scoreCols = cols(sqlite, 'scores');

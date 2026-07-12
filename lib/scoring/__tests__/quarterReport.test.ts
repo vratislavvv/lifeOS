@@ -9,7 +9,7 @@ const QS = '2026-04-01';  // quarter start
 const QE = '2026-06-30';  // quarter end
 
 function makeVector(id: string, label: string): VectorRow {
-  return { id, label, color: '#000', order: 0, active: true, createdAt: new Date() };
+  return { id, label, color: '#000', order: 0, active: true, createdVia: 'preset', icon: null, description: null, weight: 1, createdAt: new Date() };
 }
 
 function makeGoal(overrides: Partial<GoalRow> & { id: string; vectorId: string; type: GoalRow['type'] }): GoalRow {

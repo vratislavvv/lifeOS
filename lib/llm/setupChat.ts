@@ -22,6 +22,19 @@ type SetupContext = {
 
 const TOOLS: Anthropic.Tool[] = [
   {
+    name: 'create_vector',
+    description: 'Create a new vector (life area/direction) for the user. Call this once the user has chosen a label for a life area. The vector appears immediately in the drafts panel.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        label:       { type: 'string', description: 'The vector name, e.g. "Craft", "Body", "Fatherhood"' },
+        color:       { type: 'string', description: 'Hex color — pick from: #B0853F (amber/craft), #7E8A6B (sage/body), #6B7E8A (slate/money), #7E6B8A (violet/mind), #8A6B7E (rose/social), #6B8A8A (teal/rest). Reuse colors as needed.' },
+        description: { type: 'string', description: 'Optional one-line description of what this area covers' },
+      },
+      required: ['label', 'color'],
+    },
+  },
+  {
     name: 'propose_anchor',
     description: 'Record a confirmed long-horizon anchor for a vector. Call this after the user has agreed on the anchor statement.',
     input_schema: {
@@ -147,7 +160,9 @@ export async function chatDuringSetup(
   history: ChatMessage[],
   onToolCall: ToolHandler
 ): Promise<string> {
-  const vectorList = context.vectors.map(v => `  - ${v.id}: ${v.label}`).join('\n');
+  const vectorList = context.vectors.length > 0
+    ? context.vectors.map(v => `  - ${v.id}: ${v.label}`).join('\n')
+    : '  (none yet)';
 
   const tz = context.timezone || 'UTC';
   const today = new Date().toLocaleDateString('en-US', {
@@ -165,7 +180,7 @@ export async function chatDuringSetup(
   const goaledVectors    = context.draftGoals.map(g => g.vectorId);
   const activeVectors    = context.vectors.filter(v => !context.removedVectors.includes(v.id));
   const pendingAnchors   = activeVectors.filter(v => !anchoredVectors.includes(v.id)).map(v => v.label);
-  // Bug 3 fix: only vectors with a confirmed anchor belong in the goal phase
+  // Only vectors with a confirmed anchor belong in the goal phase
   const pendingGoals     = activeVectors
     .filter(v => anchoredVectors.includes(v.id) && !goaledVectors.includes(v.id) && !context.skippedGoalVectors.includes(v.id))
     .map(v => v.label);
@@ -211,7 +226,16 @@ This is a structured, phased conversation. YOU lead — the user follows your ag
 Today is ${today}. Quarter: ${context.quarter}.${ageLine ? `\n${ageLine}` : ''}${preferredHorizonLine ? `\n${preferredHorizonLine}` : ''}
 ${arithmeticLine}
 
-Vectors selected by the user:
+STARTER PALETTE (examples only — inspiration, not a fixed grid):
+• Craft — work, skills, shipping (#B0853F)
+• Body — training, health (#7E8A6B)
+• Money — savings, net worth (#6B7E8A)
+• Mind — reading, learning (#7E6B8A)
+• Social — friends, family (#8A6B7E)
+• Rest — sleep, recovery (#6B8A8A)
+The user can take an example as-is, rename it, or create something entirely their own. Never make them pick from this grid — use it as a starting shape for the conversation. Call create_vector for each chosen direction.
+
+Vectors created so far:
 ${vectorList}
 
 Current phase: ${context.phase.toUpperCase()}
@@ -219,26 +243,37 @@ Anchors confirmed: ${anchoredVectors.length > 0 ? anchoredVectors.join(', ') : '
 Goals drafted: ${context.draftGoals.length > 0 ? context.draftGoals.map(g => `[${g.id}] ${g.vectorId}: "${g.description}" (${g.type})`).join('; ') : 'none'}
 ${context.skippedGoalVectors.length > 0 ? `Goals skipped this quarter: ${context.skippedGoalVectors.join(', ')}` : ''}
 ${context.removedVectors.length > 0 ? `Vectors removed from profile: ${context.removedVectors.join(', ')}` : ''}
-${context.phase === 'orient' ? `Still need anchors for: ${pendingAnchors.join(', ') || 'none — ready to advance'}` : ''}
+${context.phase === 'orient' && context.vectors.length === 0 ? 'No vectors yet — start by exploring life areas.' : ''}
+${context.phase === 'orient' && context.vectors.length > 0 ? `Still need anchors for: ${pendingAnchors.join(', ') || 'none — ready to advance'}` : ''}
 ${context.phase === 'draft'  ? `Still need goals for: ${pendingGoals.join(', ')   || 'none — ready to advance'}` : ''}
 
 ---
 
 TOOL RULES — non-negotiable:
-Your ONLY tools are: propose_anchor, propose_goal, remove_draft_goal, skip_goal, remove_vector, advance_phase. You have NO other backend access, verification system, or database connection beyond what these tools return.
+Your ONLY tools are: create_vector, propose_anchor, propose_goal, remove_draft_goal, skip_goal, remove_vector, advance_phase. You have NO other backend access, verification system, or database connection beyond what these tools return.
 NEVER say "let me check the backend," "finalizing in the system," "give me a moment to confirm," or ask for screenshots. If the Confirm button appears blocked, the ONLY remedy is calling advance_phase({ phase: "commit" }) — nothing else will fix it.
 
 ---
 
 PHASE INSTRUCTIONS:
 
-ORIENT — Establish a long-horizon anchor for each vector.
-- Go one vector at a time. Ask what the user wants to be true at a meaningful age milestone (e.g. "by 25", "by 30", "by 35") — use their actual age to pick a natural horizon, not a vague "5–10 years".
+ORIENT — Two sub-tasks in order: (1) discover and create the user's vectors, (2) anchor each one.
+
+Sub-task 1 — Create vectors (if "Vectors created so far" shows none or the user hasn't finished):
+- Introduce the idea of vectors as durable life areas/directions (not goals or tasks). Offer the starter palette as examples to spark the conversation.
+- Go conversationally — ask what areas of life they want to be operating on intentionally. Let them name their own, rename examples, or take examples as-is.
+- VECTOR vs GOAL: if what they describe is really an achievement or outcome ("run a marathon", "get promoted", "learn piano"), redirect immediately — that's an anchor or goal under an existing vector, not a direction. Name the right parent vector and propose it instead.
+- HANDFUL CAP: soft max is 6 active vectors. If they want more, push back: "more vectors dilutes each one — which of these actually matter right now?"
+- Once they describe a direction, call create_vector immediately. Don't wait to batch them.
+- When the user signals they're done choosing vectors (no more areas to add), move to sub-task 2.
+
+Sub-task 2 — Anchor each vector:
+- Go one vector at a time. Ask what the user wants to be true at a meaningful age milestone (e.g. "by 25", "by 30") — use their actual age to pick a natural horizon.
 - When the user describes an anchor, assess clarity:
-  - Clear (outcome and target age have a single reading, e.g. "run sub-3h marathon by 30") → call propose_anchor immediately. Brief acknowledgment only, no echo-back.
-  - Ambiguous (vague outcome, missing target age, or multiple plausible readings) → ask ONE targeted question about the specific fork. Call propose_anchor after one answer.
-- If the user doesn't want a vector at all ("I don't care about Social"), call remove_vector. Only for genuine disinterest — not just "not this quarter."
-- After every remaining vector has a confirmed anchor or is removed, you MUST call advance_phase({ phase: "draft" }) immediately. The "Still need anchors for:" line above tells you what's left — when it says "none", call the tool NOW.
+  - Clear (outcome and target age have a single reading) → call propose_anchor immediately. Brief acknowledgment only.
+  - Ambiguous → ask ONE targeted question. Call propose_anchor after one answer.
+- If the user doesn't want a vector at all ("I don't care about Social"), call remove_vector. Only for genuine disinterest.
+- After every vector has a confirmed anchor or is removed, you MUST call advance_phase({ phase: "draft" }) immediately. When "Still need anchors for:" says "none", call the tool NOW.
 - One vector at a time. Don't batch them.
 
 DRAFT — Propose this quarter's goal(s) for each vector.
@@ -272,7 +307,9 @@ RULES:
 - Never write goals as active during this session. They are always draft.
 - Mechanical preferences (timezone, units, currency) are already set — don't ask about them.
 - Be concise. Short beats long. Keep it conversational.
-- If the user message is "__start__": open the session with a brief greeting and your first question for the orient phase. Don't reference this instruction.`;
+- VECTOR vs GOAL (applies throughout): a vector is a durable life area or direction (Craft, Body, Fatherhood, Faith) — NOT an achievement, outcome, or task. If the user describes something like "I want marathon training as a vector" or "add getting promoted", correct the frame immediately: that's an anchor or goal under an existing vector, not a new direction. Name the right parent vector and file it there.
+- HANDFUL CAP: soft cap of 6 active vectors. If the user asks to add more, note that the cap protects focus and push back before creating a 7th.
+- If the user message is "__start__": open the session with a brief greeting and your first question for the orient phase (exploring life areas). Don't reference this instruction.`;
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map(m => ({

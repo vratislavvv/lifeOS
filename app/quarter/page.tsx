@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { and, asc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { user, vectors, goals, scores, inputs, sessions } from '@/lib/db/schema';
+import { user, vectors, goals, scores, inputs, sessions, anchors } from '@/lib/db/schema';
 import { goalTau, quarterPaceNow, expectedPace } from '@/lib/scoring/pace';
 import { computeCompletion } from '@/lib/scoring/completion';
 import { quarterBounds, prevQuarterOf, nextQuarterOf, todayStr } from '@/lib/dates';
@@ -58,6 +58,25 @@ export default async function QuarterPage({
 
   // ── Data for the viewed quarter ────────────────────────────────────────────
   const vecs = db.select().from(vectors).orderBy(asc(vectors.order)).all();
+
+  // Long-term anchors (set during setup)
+  const allAnchors = db.select().from(anchors).all();
+  const anchorRows = allAnchors.map(a => {
+    const vec = vecs.find(v => v.id === a.vectorId);
+    if (!vec || !vec.active) return null;
+    return {
+      id:          a.id,
+      vectorId:    a.vectorId,
+      description: a.description,
+      targetAge:   a.targetAge,
+      vectorLabel: vec.label,
+      vectorColor: vec.color,
+    };
+  }).filter((a): a is NonNullable<typeof a> => a !== null);
+
+  // Active vectors with no anchor yet — shown as "pending" in the long-term section
+  const anchoredVectorIds = new Set(allAnchors.map(a => a.vectorId));
+  const pendingVectors = vecs.filter(v => v.active && !anchoredVectorIds.has(v.id));
 
   const activeGoals = db.select().from(goals)
     .where(eq(goals.quarter, viewedQ))
@@ -176,6 +195,8 @@ export default async function QuarterPage({
     <QuarterShell
       user={u}
       vectors={vecs}
+      anchorRows={anchorRows}
+      pendingVectors={pendingVectors}
       goalCards={goalCards}
       latestScore={latestScore}
       quarter={viewedQ}

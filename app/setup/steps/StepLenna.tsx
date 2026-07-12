@@ -1,16 +1,10 @@
 import type { StepProps } from '../types';
-import { VECTORS } from '@/lib/vectors';
 import styles from '../setup.module.css';
 import Segmented from '../Segmented';
 import NavRow from '../NavRow';
 
 export default function StepLenna({ data, onChange, onNext, onBack }: StepProps) {
   const first = data.name.trim().split(' ')[0] || 'you';
-  const focuses = data.vectors.slice(0, 2).map(k => VECTORS[k].label);
-  const focus =
-    focuses.length > 1
-      ? `${focuses[0]} and ${focuses[1]}`
-      : focuses[0] ?? 'your vectors';
 
   return (
     <div className={styles.stepPane}>
@@ -22,7 +16,7 @@ export default function StepLenna({ data, onChange, onNext, onBack }: StepProps)
       </div>
 
       <div className={styles.lennaIntro}>
-        Hi {first} — I'll keep {focus} honest this quarter, draft your days,
+        Hi {first} — I'll help you figure out your vectors, keep them honest this quarter, draft your days,
         and protect your mornings. Tell me how to show up.
       </div>
 

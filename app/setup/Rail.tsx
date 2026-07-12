@@ -2,9 +2,8 @@ import styles from './setup.module.css';
 
 const STEPS = [
   { num: '01', name: 'You' },
-  { num: '02', name: 'Vectors' },
-  { num: '03', name: 'Connect' },
-  { num: '04', name: 'Lenna' },
+  { num: '02', name: 'Connect' },
+  { num: '03', name: 'Lenna' },
 ];
 
 export default function Rail({ currentStep }: { currentStep: number }) {

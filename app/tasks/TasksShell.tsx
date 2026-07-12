@@ -282,10 +282,10 @@ export default function TasksShell({ groups, tasks: allTasks, today }: Props) {
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <Link href="/today" className={styles.navLink}>Today</Link>
+              <Link href="/today" className={styles.navLink}>Dashboard</Link>
             </div>
             <div className={styles.navItem}>
-              <Link href="/quarter" className={styles.navLink}>Quarter</Link>
+              <Link href="/quarter" className={styles.navLink}>Trajectory</Link>
             </div>
             <div className={styles.navItem}>
               <Link href="/tasks" className={`${styles.navLink} ${styles.navLinkActive}`}>Tasks</Link>

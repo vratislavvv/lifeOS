@@ -287,63 +287,164 @@
   outline: none;
 }
 
-/* Vectors grid */
-.vectorsGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  max-width: 500px;
-  margin-bottom: 12px;
+/* Editable palette (StepVectors) */
+.paletteList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 420px;
+  margin-bottom: 8px;
 }
-.vectorCard {
+.paletteRow {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 12px 13px;
-  border: 1.5px solid var(--hairline);
-  border-radius: 11px;
-  background: transparent;
+  gap: 10px;
+  padding: 6px 0;
+}
+.colorSwatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+  outline: none;
+}
+.colorSwatch:hover { transform: scale(1.12); }
+.colorPopover {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  display: flex;
+  gap: 5px;
+  padding: 7px 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 20;
+}
+.colorOption {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+  outline: none;
+}
+.colorOption:hover { transform: scale(1.15); }
+.colorOptionActive { border-color: var(--ink); }
+.paletteLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: text;
   text-align: left;
   font-family: var(--font-sans);
+  padding: 3px 6px;
+  border-radius: 5px;
+  transition: background 0.1s;
 }
-.vectorCardSelected {
-  border-color: var(--card-border);
-  background: var(--card-bg);
+.paletteLabel:hover { background: var(--surface-sunk); }
+.paletteLabelInput {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--surface-sunk);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 5px;
+  padding: 3px 8px;
+  outline: none;
 }
-.vectorCheck {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+.paletteRemove {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  color: var(--bg);
   flex-shrink: 0;
-  opacity: 0.35;
-  transition: opacity 0.12s;
+  transition: background 0.1s, color 0.1s;
 }
-.vectorCardSelected .vectorCheck { opacity: 1; }
-.vectorTitle { font-size: 13px; font-weight: 500; color: var(--ink); }
-.vectorSub { font-size: 10.5px; color: var(--ink-soft); margin-top: 1px; }
+.paletteRemove:hover { background: var(--surface-sunk); color: var(--attention); }
+
 .addVectorBtn {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 10px;
+  padding: 8px 12px;
   border: 1px dashed var(--hairline-strong);
-  border-radius: 11px;
+  border-radius: 9px;
   color: var(--ink-faint);
   font-size: 12px;
   font-family: var(--font-sans);
   background: transparent;
   cursor: pointer;
-  max-width: 500px;
+  max-width: 420px;
   margin-bottom: 28px;
+  transition: border-color 0.1s, color 0.1s;
 }
+.addVectorBtn:hover { border-color: var(--ink-soft); color: var(--ink-soft); }
+
+.addCustomForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 9px;
+  max-width: 420px;
+  margin-bottom: 12px;
+}
+.addCustomColors { display: flex; gap: 4px; flex-shrink: 0; }
+.addCustomInput {
+  flex: 1;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  outline: none;
+  min-width: 0;
+}
+.addCustomInput::placeholder { color: var(--ink-faint); }
+.addCustomSubmit {
+  padding: 4px 13px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.addCustomSubmit:disabled { opacity: 0.35; cursor: not-allowed; }
+.addCustomCancel {
+  font-size: 12px;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  flex-shrink: 0;
+}
+.addCustomCancel:hover { color: var(--ink-soft); }
 
 /* Goals */
 .goalsList {
@@ -413,6 +514,38 @@
   font-family: var(--font-mono);
   color: var(--ink-soft);
 }
+.connectionStatusOn  { font-size: 11px; font-family: var(--font-mono); color: var(--positive); }
+.connectionStatusOff { font-size: 11px; font-family: var(--font-mono); color: var(--ink-faint); }
+.connectionBtn {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.connectionBtn:hover { opacity: 0.85; }
+.connectionBtnOutline {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  padding: 5px 14px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-sub);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.connectionBtnOutline:hover { background: var(--surface-sunk); color: var(--ink); }
+.connectionBtnOutline:disabled { opacity: 0.5; cursor: not-allowed; }
 .btnConnect {
   padding: 6px 15px;
   border-radius: 7px;

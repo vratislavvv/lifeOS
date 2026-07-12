@@ -7,12 +7,15 @@ import styles from './today.module.css';
 import Clock from './Clock';
 import FocusTimer from './FocusTimer';
 import CalSection from './CalSection';
+import StepsRing from './StepsRing';
 import LennaPanel from '@/components/LennaPanel';
 import RadarChart from '@/components/RadarChart';
 import { sendToLenna } from './actions';
 import { toggleTask, deleteTask } from './taskActions';
 import { useLennaMessages } from '@/lib/hooks/useLennaMessages';
 import type { vectors, scores, tasks, taskGroups, user } from '@/lib/db/schema';
+import type { CalEvent } from '@/lib/google/calendar';
+import type { LogEntry } from './CalSection';
 
 type User = typeof user.$inferSelect;
 type Vector = typeof vectors.$inferSelect;
@@ -29,6 +32,9 @@ type Props = {
   currentQuarter: string;
   quarterPace: number;
   vectorCompletion: Record<string, { c: number; e: number }>;
+  calEvents: CalEvent[];
+  logEntries: LogEntry[];
+  todaySteps?: number;
 };
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -51,7 +57,7 @@ function dueDateLabel(dueDate: string | null): { text: string; overdue: boolean 
   return { text: `due ${label}`, overdue: false };
 }
 
-export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace, vectorCompletion }: Props) {
+export default function TodayShell({ user, vectors, score, groups, todayTasks, currentQuarter, quarterPace, vectorCompletion, calEvents, logEntries, todaySteps }: Props) {
   const today = new Date();
   const router = useRouter();
   const [inputText, setInputText] = useState('');
@@ -94,10 +100,8 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
         setMessages(prev => prev.slice(0, -1));
       } else if (result.reply) {
         setMessages(prev => [...prev, { role: 'lenna', text: result.reply! }]);
-        if (result.justLogged) {
-          setLastLogged(result.justLogged);
-          router.refresh();
-        }
+        if (result.justLogged) setLastLogged(result.justLogged);
+        if (result.justLogged || result.needsRefresh) router.refresh();
       }
     });
   }
@@ -111,10 +115,10 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
           <div className={styles.sidebarLogo}>lifeOS</div>
           <div className={styles.navTree}>
             <div className={styles.navItem}>
-              <Link href="/today" className={`${styles.navLink} ${styles.navLinkActive}`}>Today</Link>
+              <Link href="/today" className={`${styles.navLink} ${styles.navLinkActive}`}>Dashboard</Link>
             </div>
             <div className={styles.navItem}>
-              <Link href="/quarter" className={styles.navLink}>Quarter</Link>
+              <Link href="/quarter" className={styles.navLink}>Trajectory</Link>
             </div>
             <div className={styles.navItem}>
               <Link href="/tasks" className={styles.navLink}>Tasks</Link>
@@ -235,26 +239,31 @@ export default function TodayShell({ user, vectors, score, groups, todayTasks, c
             <div className={styles.row}>
               <div className={`${styles.island} ${styles.quarterIsland}`}>
                 <RadarChart
-                  vectors={vectors.map(v => {
+                  vectors={vectors.filter(v => v.active).map(v => {
                     const vc = vectorCompletion[v.id];
                     return {
                       id:    v.id,
                       label: v.label,
                       color: v.color,
                       c:     vc?.c ?? 0,
-                      e:     vc?.e ?? quarterPace,
+                      e:     vc?.e ?? 0,  // pending vectors (no active goal) show at neutral baseline
                     };
                   })}
                 />
               </div>
-              <div className={`${styles.island} ${styles.islandSunk} ${styles.focusIsland}`}>
-                <button className={styles.islandFullscreen} onClick={() => setFullscreen('focus')} title="Fullscreen">⤢</button>
-                <FocusTimer />
+              <div className={styles.focusGroup}>
+                <div className={`${styles.island} ${styles.islandSunk} ${styles.focusIsland}`}>
+                  <button className={styles.islandFullscreen} onClick={() => setFullscreen('focus')} title="Fullscreen">⤢</button>
+                  <FocusTimer />
+                </div>
+                <div className={`${styles.island} ${styles.islandSunk} ${styles.stepsIsland}`}>
+                  <StepsRing steps={todaySteps} />
+                </div>
               </div>
             </div>
 
             {/* Calendar */}
-            <CalSection weekStart={user.weekStart} />
+            <CalSection weekStart={user.weekStart} events={calEvents} logEntries={logEntries} />
           </>
         )}
 

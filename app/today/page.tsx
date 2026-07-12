@@ -5,11 +5,14 @@ import { user, vectors, goals, inputs, scores, tasks, taskGroups } from '@/lib/d
 import { quarterPaceNow, goalTau, expectedPace } from '@/lib/scoring/pace';
 import { computeCompletion } from '@/lib/scoring/completion';
 import { quarterBounds } from '@/lib/dates';
+import { fetchCalendarEvents, type CalEvent } from '@/lib/google/calendar';
+import { syncTodaySteps } from '@/lib/google/fitness';
 import TodayShell from './TodayShell';
+import type { LogEntry } from './CalSection';
 
 export const dynamic = 'force-dynamic';
 
-export default function TodayPage() {
+export default async function TodayPage() {
   const u = db.select().from(user).get();
   if (!u || !u.setupDone) redirect('/setup');
 
@@ -71,6 +74,40 @@ export default function TodayPage() {
     vectorCompletion[v.id] = { c: sumC / vGoals.length, e: sumE / vGoals.length };
   }
 
+  // Build log entries for calendar dots — all inputs this quarter with vector color
+  const logEntries: LogEntry[] = quarterInputs
+    .filter(i => i.vectorId)
+    .map(i => {
+      const vec = vecs.find(v => v.id === i.vectorId);
+      if (!vec) return null;
+      const createdAt = i.createdAt ? new Date(i.createdAt) : null;
+      const time = createdAt
+        ? createdAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz })
+        : '';
+      return {
+        id:          i.id,
+        date:        i.date,
+        time,
+        description: (i.metadata as { summary?: string } | null)?.summary ?? i.rawText ?? '',
+        vectorColor: vec.color,
+        vectorLabel: vec.label,
+      };
+    })
+    .filter((e): e is LogEntry => e !== null);
+
+  let todaySteps: number | undefined;
+  let calEvents: CalEvent[] = [];
+
+  const fetches = await Promise.allSettled([
+    u.googleHealthRefreshToken ? syncTodaySteps(u.googleHealthRefreshToken, today) : Promise.reject('no health token'),
+    u.googleRefreshToken ? fetchCalendarEvents(u.googleRefreshToken,
+      new Date(Date.now() - 7  * 86_400_000),
+      new Date(Date.now() + 90 * 86_400_000),
+    ) : Promise.reject('no calendar token'),
+  ]);
+  if (fetches[0].status === 'fulfilled') todaySteps = fetches[0].value;
+  if (fetches[1].status === 'fulfilled') calEvents  = fetches[1].value;
+
   return (
     <TodayShell
       user={u}
@@ -81,6 +118,9 @@ export default function TodayPage() {
       currentQuarter={quarter}
       quarterPace={quarterPaceNow()}
       vectorCompletion={vectorCompletion}
+      calEvents={calEvents}
+      logEntries={logEntries}
+      todaySteps={todaySteps}
     />
   );
 }
