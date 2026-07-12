@@ -34,18 +34,26 @@ export default function SetupFlow({ googleConnected = false, googleHealthConnect
   const [step, setStep] = useState(0);
   const [data, setData] = useState<SetupData>(INITIAL);
 
-  // On mount: restore step + data from localStorage (survives the OAuth redirect)
+  // On mount: restore step + data only when returning from OAuth (flag set before redirect).
+  // Without the flag this is a fresh visit — clear any stale state.
   useEffect(() => {
     let savedStep = 0;
     let savedData: Partial<SetupData> = {};
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.step >= 1 && parsed.step <= 3) savedStep = parsed.step;
-        if (parsed.data) savedData = parsed.data;
-      }
-    } catch {}
+
+    const oauthReturn = localStorage.getItem('lifeos-setup-oauth') === '1';
+    if (oauthReturn) {
+      localStorage.removeItem('lifeos-setup-oauth');
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.step >= 1 && parsed.step <= 3) savedStep = parsed.step;
+          if (parsed.data) savedData = parsed.data;
+        }
+      } catch {}
+    } else {
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
 
     // Auto-detect timezone only if not already saved
     let detectedTz = '';

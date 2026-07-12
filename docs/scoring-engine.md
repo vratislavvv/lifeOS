@@ -41,7 +41,7 @@ Let **`τ` = fraction of the goal's window elapsed** = `clamp((asOf − startDat
 ```
 metric:       c = clamp((currentValue − startValue) / (targetValue − startValue), 0, 1)
 consistency:  c = completedPeriods / scheduledPeriods       // scheduledPeriods from cadence × elapsed
-milestone:    c = clamp(Σ_i (δ_i · confidence_i), 0, 1)      // δ_i = per-input progressDelta, each capped at MAX_INPUT_DELTA
+milestone:    c = clamp(Σ_i (δ_i · confidence_i), 0, 1)      // δ_i = per-input progressDelta (fraction of this goal); total clamped at 1
 ```
 
 Only `milestone` uses LLM-derived `δ`. `metric` and `consistency` are computed from real values/occurrences — the LLM must never produce `c` for them.
@@ -91,12 +91,10 @@ p          = ALIGN_LAMBDA · (1 − a)                 // bounded penalty; rest 
 ```
 G = ( Σ_v W_v · Γ_v ) / ( Σ_v W_v )  −  p           // W_v = vector weight, default uniform
 
-if G ≥ 0:  S = ON_PACE_SCORE + (100 − ON_PACE_SCORE) · G
-else:      S = ON_PACE_SCORE + ON_PACE_SCORE · G
-S = clamp(S, 0, 100)
+S = clamp(ON_PACE_SCORE + ON_PACE_SCORE · G, 0, 100)
 ```
 
-On-pace (`G = 0`) anchors at `ON_PACE_SCORE` (70), ahead climbs to 100, behind falls to 0. **On-pace must never be 100** — that turns the number into a guilt machine. Simpler linear fallback if preferred: `S = 50 + 50·G`.
+On-pace (`G = 0`) → `S = 100`. Ahead (`G > 0`) → still 100 (capped). Behind (`G < 0`) → below 100, reaching 0 at `G = −1`. **100 means you are on pace with your quarterly goals** — there is no bonus for being ahead.
 
 ### Stage 6 — Smoothing
 
@@ -152,14 +150,14 @@ Rules: `kind` follows the matched goal's `type`. For `metric` goals report the o
 ## 4. Constants (single config module)
 
 ```
-ON_PACE_SCORE      = 70      // anchor for "on pace"
+ON_PACE_SCORE      = 100     // 100 = on pace; score is capped at 100, never exceeded
 EMA_ALPHA          = 0.3     // smoothing (~1 week memory)
 ALIGN_LAMBDA       = 0.15    // max alignment penalty
 ALIGN_WINDOW_DAYS  = 14
 STALE_GRACE        = 5       // days before staleness bites
 STALE_RATE         = 0.01    // per day beyond grace
 STALE_CAP          = 0.15    // max staleness drag per vector
-MAX_INPUT_DELTA    = 0.34    // no single milestone input exceeds this
+MAX_INPUT_DELTA    = 1.0     // per-input ceiling; total is clamped to 1 by completion logic
 CONFIDENCE_FLOOR   = 0.2     // inputs below this are ignored
 ```
 
@@ -173,7 +171,7 @@ These are feel-dials — calibrate by use, not by editing logic.
 - **Empty vector** → exclude from composite, renormalise; surface "add a goal."
 - **Regression** → metric `c` falls naturally; manual milestone `δ` may be negative (hence −1..1).
 - **Stale metric value** → staleness decay + a "needs update" flag; don't blindly trust an old reading.
-- **Gaming** → metric/consistency are objective; milestone is capped per-input (`MAX_INPUT_DELTA`), confidence-weighted, and cumulatively clamped at 1.
+- **Gaming** → metric/consistency are objective; milestone `progressDelta` must represent the actual fraction of the goal completed (countable goals: 1/N per item), is confidence-weighted, and is cumulatively clamped at 1 — so overclaiming on one entry can't push past 100%.
 - **Quarter rollover (session-driven, not calendar-driven)** → goals close, `τ` resets, and new goals' `startValue` re-baselines to current actuals **when a planning session commits** — not at the calendar date. Between the quarter boundary and that commit, hold the last computed score (a *review-due* state); do not auto-roll. Anchors persist; the EMA continues across the boundary (no discontinuity). See `lifeOS-planning-sessions.md` §3–§4.
 - **Mis-set pace curve** → always expose `c` vs `e` in the UI so the user recalibrates the curve instead of distrusting the score.
 
@@ -193,13 +191,13 @@ Quarter `2026-Q2`, 91 days, `asOf` = day 50 → `τ ≈ 0.549`. Three vectors, u
 G0 = mean(−0.349, +0.308, −0.082)          = −0.041
 alignment a = 0.70  →  p = 0.15·(1−0.70)    =  0.045
 G  = −0.041 − 0.045                          = −0.086
-S  = 70 + 70·(−0.086)                        ≈ 64.0      (operatingLevelRaw)
-OL = 0.3·64.0 + 0.7·66 (prior)               ≈ 65.4      (operatingLevel)
+S  = 100 + 100·(−0.086)                      ≈ 91.4      (operatingLevelRaw)
+OL = 0.3·91.4 + 0.7·93 (prior)               ≈ 92.5      (operatingLevel)
 ```
 
-Assertions: `operatingLevelRaw ≈ 64.0 (±0.5)`, `operatingLevel ≈ 65.4 (±0.5)`, top negative contributor = `Craft`, top positive = `Body`.
+Assertions: `operatingLevelRaw ≈ 91.4 (±0.5)`, `operatingLevel ≈ 92.5 (±0.5)`, top negative contributor = `Craft`, top positive = `Body`.
 
-Add focused tests too: metric completion (`12,5,20 → 0.4667`), each pace curve at `τ=0.5`, the on-pace anchor (`G=0 → S=70`), fully-ahead (`G=1 → S=100`), fully-behind (`G=−1 → S=0`), and the alignment penalty bounds (`a=1 → p=0`, `a=0 → p=0.15`).
+Add focused tests too: metric completion (`12,5,20 → 0.4667`), each pace curve at `τ=0.5`, the on-pace anchor (`G=0 → S=100`), fully-ahead (`G=1 → S=100` — capped), fully-behind (`G=−1 → S=0`), alignment penalty bounds (`a=1 → p=0`, `a=0 → p=0.15`), and milestone fraction logging (`1 of 2 shipped → progressDelta=0.5 → c=0.5`).
 
 ---
 

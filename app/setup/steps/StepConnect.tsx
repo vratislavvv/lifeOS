@@ -68,7 +68,10 @@ export default function StepConnect({ onNext, onBack, googleConnected, googleHea
           ) : (
             <button
               className={styles.connectionBtn}
-              onClick={() => { window.location.href = '/api/auth/google?from=setup'; }}
+              onClick={() => {
+                localStorage.setItem('lifeos-setup-oauth', '1');
+                window.location.href = '/api/auth/google?from=setup';
+              }}
             >
               Connect
             </button>

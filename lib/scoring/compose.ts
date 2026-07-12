@@ -14,11 +14,6 @@ export function compositeGap(
 }
 
 export function rawScore(G: number): number {
-  let S: number;
-  if (G >= 0) {
-    S = ON_PACE_SCORE + (100 - ON_PACE_SCORE) * G;
-  } else {
-    S = ON_PACE_SCORE + ON_PACE_SCORE * G;
-  }
-  return Math.min(Math.max(S, 0), 100);
+  // On pace (G = 0) → 100. Behind (G < 0) → below 100. Ahead (G > 0) → capped at 100.
+  return Math.min(Math.max(ON_PACE_SCORE + ON_PACE_SCORE * G, 0), 100);
 }

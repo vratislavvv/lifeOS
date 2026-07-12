@@ -114,12 +114,12 @@ describe('milestone completion', () => {
     expect(r.goals[0].c).toBeCloseTo(0.46, 2);
   });
 
-  it('caps each delta at MAX_INPUT_DELTA (0.34)', () => {
+  it('does not cap individual deltas below their face value (MAX_INPUT_DELTA=1.0)', () => {
     const inputs = [
       makeInput({ id: 'i1', goalId: 'g1', vectorId: 'craft', kind: 'milestone_delta', progressDelta: 0.9, confidence: 1 }),
     ];
     const r = buildQuarterReport({ ...EMPTY_DATA, allGoals: [goal], allInputs: inputs, allVectors: [makeVector('craft', 'Craft')] });
-    expect(r.goals[0].c).toBeCloseTo(0.34, 2);
+    expect(r.goals[0].c).toBeCloseTo(0.9, 2);
   });
 
   it('ignores inputs below CONFIDENCE_FLOOR (0.2)', () => {
